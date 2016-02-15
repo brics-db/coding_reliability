@@ -1,3 +1,14 @@
+/*
+ * Copyright (C) 2015, 2016 Till Kolditz
+ *
+ * File: ancoding_count_undetectable_errors.cpp
+ * Authors:
+ *     Till Kolditz - till.kolditz@gmail.com
+ * 
+ * This file is distributed under the Apache License Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ */
 #include <iostream>
 #include <iomanip>
 #include <cstdint>

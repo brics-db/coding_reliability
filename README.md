@@ -17,4 +17,5 @@ For Extended Hamming Code we extend the graph by the 1-bit-distance spheres of a
 
 License
 =======
-This code is published under the Apache License Version 2.0. See file LICENSE.
+This code is published under the Apache License Version 2.0. See file LICENSE. You may obtain a copy of the License at:
+http://www.apache.org/licenses/LICENSE-2.0

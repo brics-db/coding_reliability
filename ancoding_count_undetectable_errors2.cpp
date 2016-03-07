@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <chrono>
 #include <omp.h>
+#include <list>
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -80,12 +81,14 @@ ostream& operator<<(ostream& stream, StopWatch& sw) {
 
 template<typename T>
 inline size_t computeDistance(const T &value1, const T &value2) {
-	return static_cast<size_t>(__builtin_popcountll(value1 ^ value2));
+	return static_cast<size_t>(__builtin_popcount(value1 ^ value2));
 }
 
-template<size_t A, size_t BITCNT_A, size_t BITCNT_DATA, typename T = size_t, size_t SZ_SHARDS = 64, size_t CNT_MESSAGES = 0x1ull << BITCNT_DATA,
-		size_t CNT_COUNTS = BITCNT_A + BITCNT_DATA + 1, size_t CNT_SLICES = CNT_MESSAGES / SZ_SHARDS, size_t CNT_SHARDS = CNT_SLICES * CNT_SLICES>
-void countANCodingUndetectableErrors() {
+template<size_t BITCNT_DATA, typename T = size_t, size_t SZ_SHARDS = 64, size_t CNT_MESSAGES = 0x1ull << BITCNT_DATA,
+		size_t CNT_SLICES = CNT_MESSAGES / SZ_SHARDS, size_t CNT_SHARDS = CNT_SLICES * CNT_SLICES>
+void countANCodingUndetectableErrors(size_t A) {
+	const size_t BITCNT_A = 8 * sizeof(size_t) - __builtin_clzll(A);
+	const size_t CNT_COUNTS = BITCNT_A + BITCNT_DATA + 1;
 	StopWatch sw;
 	sw.start();
 
@@ -96,7 +99,6 @@ void countANCodingUndetectableErrors() {
 	{
 #pragma omp master
 		{
-			cout << "OpenMP using " << omp_get_num_threads() << endl;
 		}
 #pragma omp for schedule(dynamic,1)
 #ifdef _MSC_VER
@@ -108,6 +110,7 @@ void countANCodingUndetectableErrors() {
 
 			// 1) Triangle for main diagonale
 			T m1, m2;
+
 			for (size_t x = 0; x < SZ_SHARDS; ++x) {
 				m1 = (shardX + x) * A;
 				++counts_local[computeDistance(m1, m1)];
@@ -138,44 +141,58 @@ void countANCodingUndetectableErrors() {
 			float inc = static_cast<float>(shardsComputed * 2 - 1) / CNT_SHARDS * 100;
 #pragma omp atomic
 			shardsDone += inc;
-
-			if (omp_get_thread_num() == 0) {
-				// cout << setw(10) << setfill('\b') << '\b' << setfill(' ') << setprecision(5) << (static_cast<double>(cntSlicesDone) / CNT_SLICES * 100.0L) << '%' << flush;
-				cout << "\b\b\b\b\b\b\b\b\b\b" << right << setw(9) << setprecision(5) << shardsDone << '%' << flush;
-			}
 		}
 	}
 	sw.stop();
 
-	cout << "\b\b\b\b\b\b\b\b\b\b" << right << setw(9) << setprecision(5) << shardsDone << '%' << endl;
-
-	cout << dec << A << " - " << BITCNT_DATA << " - #Distances:\n";
+	cout << '[' << BITCNT_DATA << ", " << A << ']' << '\t' << sw;
 	for (size_t i = 0; i < CNT_COUNTS; ++i) {
-		cout << "  " << right << setw(2) << i << ": " << setw(13) << counts[i] << '\n';
+		cout << '\t' << counts[i];
 	}
-
-	cout << "Computation took " << sw << "ns." << endl;
+	cout << endl;
 }
+
+
+template<size_t BITCNT_DATA>
+void compute() {
+	StopWatch sw;
+	sw.start();
+	for (size_t A = 2; A < (64*1024); ++A) {
+		countANCodingUndetectableErrors<BITCNT_DATA>(A);
+	}
+	sw.stop();
+	cout << "Total Time " << BITCNT_DATA << "\t" << sw << endl;
+}
+
+
+template<size_t BITCNT_DATA>
+void compute(const list<size_t> & As) {
+	StopWatch sw;
+	sw.start();
+	for (auto&& A: As) {
+		countANCodingUndetectableErrors<BITCNT_DATA>(A);
+	}
+	sw.stop();
+	cout << "Total Time " << BITCNT_DATA << "\t" << sw << endl;
+}
+
 
 int main() {
-	countANCodingUndetectableErrors<641, 10, 8>();
-	countANCodingUndetectableErrors<641, 10, 16>();
-	countANCodingUndetectableErrors<641, 10, 24>();
-	// countANCodingUndetectableErrors<641, 10, 32>();
-
-	countANCodingUndetectableErrors<965, 10, 8>();
-	countANCodingUndetectableErrors<965, 10, 16>();
-	countANCodingUndetectableErrors<965, 10, 24>();
-	// countANCodingUndetectableErrors<965, 10, 32>();
-
-	countANCodingUndetectableErrors<7567, 13, 8>();
-	countANCodingUndetectableErrors<7567, 13, 16>();
-	countANCodingUndetectableErrors<7567, 13, 24>();
-	// countANCodingUndetectableErrors<7567, 13, 32>();
-
-	countANCodingUndetectableErrors<58659, 16, 8>();
-	countANCodingUndetectableErrors<58659, 16, 16>();
-	countANCodingUndetectableErrors<58659, 16, 24>();
-	// countANCodingUndetectableErrors<58659, 16, 32>();
+#pragma omp parallel
+	{
+#pragma omp master
+		{
+			cout << "OpenMP using " << omp_get_num_threads() << endl;		
+		}
+	}
+	list<size_t> As = {641, 965, 7567, 58659, 59665, 63157, 63859, 63877};
+	StopWatch sw;
+	sw.start();
+	compute<8>();
+	compute<16>();
+	compute<24>(As);
+	sw.stop();
+	cout << "Grand Total\t" << sw;
 	return 0;
 }
+

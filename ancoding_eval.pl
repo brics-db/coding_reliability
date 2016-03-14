@@ -74,7 +74,7 @@ try {
 			}
 			
 			my $leadingZeroProbs = 0;
-			for my $i (1..$num/2) {
+			for my $i (1..$num) {
 				if ($parts[$i+2] == 0) {
 					++$leadingZeroProbs;
 				} else {
@@ -82,7 +82,7 @@ try {
 				}
 			}
 			my $trailingZeroProbs = 0;
-			for my $i ($num..($num/2+1)) {
+			for my $i (reverse 1..$num) {
 				if ($parts[$i+2] == 0) {
 					++$trailingZeroProbs;
 				} else {
@@ -99,7 +99,7 @@ try {
 			for my $i (0..$num) {
 				print OUT "\t".$parts[$i+2];
 			}
-			for my $i = (($num+1)..$maxWidth) {
+			for my $i (($num+1)..$maxWidth) {
 				print OUT "\t";
 			}
 			for my $i (1..$num) {
@@ -107,6 +107,9 @@ try {
 				print OUT sprintf("\t%.10f", 1.0 * $parts[$i+2] / $combinations[$i]);
 			}
 			#print OUT "\t$total\t$combsTotal\t".(1.0 * $total / $combsTotal);
+			for my $i (($num+1)..$maxWidth) {
+				print OUT "\t";
+			}
 			print OUT "\t$leadingZeroProbs\t$trailingZeroProbs\n";
 			
 			$lastNum = $num;

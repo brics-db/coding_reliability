@@ -24,6 +24,8 @@
 using namespace std;
 using namespace std::chrono;
 
+const bool OUTPUT_INSERT_DOT = false;
+
 class StopWatch {
 	high_resolution_clock::time_point startNS, stopNS;
 
@@ -44,21 +46,34 @@ public:
 		return duration_cast<nanoseconds>(stopNS - startNS).count();
 	}
 };
-ostream& operator<<(ostream& stream, StopWatch& sw) {
-	high_resolution_clock::rep dura = sw.duration();
-	size_t max = 1000;
-	while (dura / max > 0) {
-		max *= 1000;
+typedef struct hrc_duration {
+	high_resolution_clock::rep dura;
+	hrc_duration(high_resolution_clock::rep dura)
+			: dura(dura) {
 	}
-	max /= 1000;
-	stream << setfill('0') << (dura / max);
-	while (max > 1) {
-		dura %= max;
+} hrc_duration;
+ostream& operator<<(ostream& stream, hrc_duration hrcd) {
+	high_resolution_clock::rep dura = hrcd.dura;
+	if (OUTPUT_INSERT_DOT) {
+		size_t max = 1000;
+		while (dura / max > 0) {
+			max *= 1000;
+		}
 		max /= 1000;
-		stream << '.' << setw(3) << (dura / max);
+		stream << setfill('0') << (dura / max);
+		while (max > 1) {
+			dura %= max;
+			max /= 1000;
+			stream << '.' << setw(3) << (dura / max);
+		}
+		stream << setfill(' ');
+	} else {
+		stream << dura;
 	}
-	stream << setfill(' ');
 	return stream;
+}
+ostream& operator<<(ostream& stream, StopWatch& sw) {
+	return stream << hrc_duration(sw.duration());
 }
 
 /*
@@ -84,115 +99,126 @@ inline size_t computeDistance(const T &value1, const T &value2) {
 	return static_cast<size_t>(__builtin_popcount(value1 ^ value2));
 }
 
-template<size_t BITCNT_DATA, typename T = size_t, size_t SZ_SHARDS = 64, size_t CNT_MESSAGES = 0x1ull << BITCNT_DATA,
-		size_t CNT_SLICES = CNT_MESSAGES / SZ_SHARDS, size_t CNT_SHARDS = CNT_SLICES * CNT_SLICES>
-void countANCodingUndetectableErrors(size_t A) {
-	const size_t BITCNT_A = 8 * sizeof(size_t) - __builtin_clzll(A);
-	const size_t CNT_COUNTS = BITCNT_A + BITCNT_DATA + 1;
+template<size_t BITCNT_DATA, typename T = size_t, size_t SZ_SHARDS = 64, size_t CNT_MESSAGES = 0x1ull << BITCNT_DATA, size_t CNT_SLICES = CNT_MESSAGES
+		/ SZ_SHARDS, size_t CNT_SHARDS = CNT_SLICES * CNT_SLICES>
+void countANCodingUndetectableErrors(size_t A, size_t maxAExclusive = 0) {
+	// const size_t BITCNT_A = 8 * sizeof(size_t) - __builtin_clzll(A);
+	// const size_t CNT_COUNTS = BITCNT_A + BITCNT_DATA + 1;
+	const size_t BITCNT_CW = 8 * sizeof(size_t) - __builtin_clzll(((0x1ll << BITCNT_DATA) - 1) * A);
+	const size_t CNT_COUNTS = BITCNT_CW + 1;
 	StopWatch sw;
 	sw.start();
 
 	size_t counts[CNT_COUNTS] = { 0 };
 	double shardsDone = 0.0;
 
-#pragma omp parallel
-	{
-#pragma omp master
-		{
-		}
-#pragma omp for schedule(dynamic,1)
+#pragma omp parallel for schedule(dynamic,1)
 #ifdef _MSC_VER
-		for (__int64 shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) {
+	for (__int64 shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) {
 #else
-		for (size_t shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) {
+	for (size_t shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) {
 #endif
-			size_t counts_local[CNT_COUNTS] = { 0 };
+		size_t counts_local[CNT_COUNTS] = { 0 };
 
-			// 1) Triangle for main diagonale
-			T m1, m2;
+		// 1) Triangle for main diagonale
+		T m1, m2;
 
+		for (size_t x = 0; x < SZ_SHARDS; ++x) {
+			m1 = (shardX + x) * A;
+			++counts_local[computeDistance(m1, m1)];
+			for (size_t y = (x + 1); y < SZ_SHARDS; ++y) {
+				m2 = (shardX + y) * A;
+				counts_local[computeDistance(m1, m2)] += 2;
+			}
+		}
+
+		// 2) Remainder of the slice
+		for (size_t shardY = shardX + SZ_SHARDS; shardY < CNT_MESSAGES; shardY += SZ_SHARDS) {
 			for (size_t x = 0; x < SZ_SHARDS; ++x) {
 				m1 = (shardX + x) * A;
-				++counts_local[computeDistance(m1, m1)];
-				for (size_t y = (x + 1); y < SZ_SHARDS; ++y) {
-					m2 = (shardX + y) * A;
+				for (size_t y = 0; y < SZ_SHARDS; ++y) {
+					m2 = (shardY + y) * A;
 					counts_local[computeDistance(m1, m2)] += 2;
 				}
 			}
+		}
 
-			// 2) Remainder of the slice
-			for (size_t shardY = shardX + SZ_SHARDS; shardY < CNT_MESSAGES; shardY += SZ_SHARDS) {
-				for (size_t x = 0; x < SZ_SHARDS; ++x) {
-					m1 = (shardX + x) * A;
-					for (size_t y = 0; y < SZ_SHARDS; ++y) {
-						m2 = (shardY + y) * A;
-						counts_local[computeDistance(m1, m2)] += 2;
-					}
-				}
-			}
+		// 3) Sum the counts
+		for (size_t i = 0; i < CNT_COUNTS; ++i) {
+#pragma omp atomic
+			counts[i] += counts_local[i];
+		}
 
-			// 3) Sum the counts
+		size_t shardsComputed = CNT_SLICES - (static_cast<float>(shardX) / SZ_SHARDS);
+		float inc = static_cast<float>(shardsComputed * 2 - 1) / CNT_SHARDS * 100;
+#pragma omp atomic
+		shardsDone += inc;
+	}
+	sw.stop();
+
+	if (maxAExclusive == 0) {
+		cout << BITCNT_DATA << '\t' << A << '\t' << sw;
+		for (size_t i = 0; i < CNT_COUNTS; ++i) {
+			cout << '\t' << counts[i];
+		}
+		cout << endl;
+	} else {
+		size_t tempA;
+		for (size_t i = 0; (tempA = (A * (0x1 << i))) < maxAExclusive; ++i) {
+			cout << BITCNT_DATA << '\t' << tempA << '\t' << sw;
 			for (size_t i = 0; i < CNT_COUNTS; ++i) {
-#pragma omp atomic
-				counts[i] += counts_local[i];
+				cout << '\t' << counts[i];
 			}
-
-			size_t shardsComputed = CNT_SLICES - (static_cast<float>(shardX) / SZ_SHARDS);
-			float inc = static_cast<float>(shardsComputed * 2 - 1) / CNT_SHARDS * 100;
-#pragma omp atomic
-			shardsDone += inc;
+			for (size_t j = i; j > 0; --j) {
+				cout << '\t' << 0;
+			}
+			cout << endl;
 		}
 	}
-	sw.stop();
-
-	cout << '[' << BITCNT_DATA << ", " << A << ']' << '\t' << sw;
-	for (size_t i = 0; i < CNT_COUNTS; ++i) {
-		cout << '\t' << counts[i];
-	}
-	cout << endl;
 }
-
 
 template<size_t BITCNT_DATA>
-void compute() {
+high_resolution_clock::rep compute(size_t maxAExclusive) {
 	StopWatch sw;
 	sw.start();
-	for (size_t A = 2; A < (64*1024); ++A) {
-		countANCodingUndetectableErrors<BITCNT_DATA>(A);
+	for (size_t A = 1; A < maxAExclusive; A+=2) {
+		countANCodingUndetectableErrors<BITCNT_DATA>(A, maxAExclusive);
 	}
 	sw.stop();
-	cout << "Total Time " << BITCNT_DATA << "\t" << sw << endl;
+	// cout << "Total Time " << BITCNT_DATA << "\t" << sw << endl;
+	return sw.duration();
 }
-
 
 template<size_t BITCNT_DATA>
 void compute(const list<size_t> & As) {
 	StopWatch sw;
 	sw.start();
-	for (auto&& A: As) {
+	for (auto&& A : As) {
 		countANCodingUndetectableErrors<BITCNT_DATA>(A);
 	}
 	sw.stop();
 	cout << "Total Time " << BITCNT_DATA << "\t" << sw << endl;
 }
-
 
 int main() {
 #pragma omp parallel
 	{
 #pragma omp master
 		{
-			cout << "OpenMP using " << omp_get_num_threads() << endl;		
+			cout << "OpenMP threads: " << omp_get_num_threads() << endl;
 		}
 	}
-	list<size_t> As = {641, 965, 7567, 58659, 59665, 63157, 63859, 63877};
+	list<size_t> As = { 641, 965, 7567, 58659, 59665, 63157, 63859, 63877 };
 	StopWatch sw;
+	high_resolution_clock::rep t8, t16;
 	sw.start();
-	compute<8>();
-	compute<16>();
-	compute<24>(As);
+	t8 = compute<8>(64 * 1024);
+	t16 = compute<16>(64 * 1024);
+	// compute<24>(As);
 	sw.stop();
-	cout << "Grand Total\t" << sw;
+	cout << " 8-bit Total\t" << hrc_duration(t8) << endl;
+	cout << "16-bit Total\t" << hrc_duration(t16) << endl;
+	cout << " Grand Total\t" << sw;
 	return 0;
 }
 

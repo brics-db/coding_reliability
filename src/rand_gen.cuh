@@ -1,10 +1,3 @@
-/*
- * rand_gen.cuh
- *
- *  Created on: 17.03.2016
- *      Author: gcoe02
- */
-
 #ifndef RAND_GEN_CUH_
 #define RAND_GEN_CUH_
 

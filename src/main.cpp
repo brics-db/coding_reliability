@@ -4,8 +4,8 @@
  * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
  */
 
+#include "globals.h"
 #include "algorithms.h"
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,13 +13,13 @@
 
 struct Flags {
   int an_coding; // AN coded words
-  size_t A;
+  uintll_t A;
   int h_coding; // hamming coded words
   int with_1bit;
   int with_mc; // with monte carlo
   int with_mc_v2; // with monte carlo
   int mc_iterations; // number of monte carlo iterations
-  size_t n; // nr of bits as input size
+  uintll_t n; // nr of bits as input size
   int use_cpu;
   int rand_gen;
   double mc_search_bound;

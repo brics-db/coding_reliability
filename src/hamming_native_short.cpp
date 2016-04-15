@@ -1,4 +1,5 @@
 #include "globals.h"
+#include "hamming.h"
 #include "algorithms.h"
 #include <helper.h>
 
@@ -7,62 +8,6 @@
 #include <iostream>
 #include <string.h>
 using namespace std;
-
-
-#ifdef _MSC_VER
-#include <intrin.h>
-#define __builtin_popcount __popcnt64
-#endif
-
-
-inline uintll_t computeHamming08(const uintll_t &value) {
-  uintll_t hamming = 0;
-  hamming |= (__builtin_popcount(value & 0x0000005B) & 0x1) << 1;
-  hamming |= (__builtin_popcount(value & 0x0000006D) & 0x1) << 2;
-  hamming |= (__builtin_popcount(value & 0x0000008E) & 0x1) << 3;
-  hamming |= (__builtin_popcount(value & 0x000000F0) & 0x1) << 4;
-  hamming |= (__builtin_popcount(value & 0x000000FF) + __builtin_popcount(hamming)) & 0x1;
-  return (value << 5) | hamming;
-}
-
-inline uintll_t computeHamming16(const uintll_t &value) {
-  uintll_t hamming = 0;
-  hamming |= (__builtin_popcount(value & 0x0000AD5B) & 0x1) << 1;
-  hamming |= (__builtin_popcount(value & 0x0000366D) & 0x1) << 2;
-  hamming |= (__builtin_popcount(value & 0x0000C78E) & 0x1) << 3;
-  hamming |= (__builtin_popcount(value & 0x000007F0) & 0x1) << 4;
-  hamming |= (__builtin_popcount(value & 0x0000F800) & 0x1) << 5;
-  hamming |= (__builtin_popcount(value & 0x0000FFFF) + __builtin_popcount(hamming)) & 0x1;
-  return (value << 6) | hamming;
-}
-
-inline uintll_t computeHamming24(const uintll_t &value) {
-  uintll_t hamming = 0;
-  hamming |= (__builtin_popcount(value & 0x00AAAD5B) & 0x1) << 1;
-  hamming |= (__builtin_popcount(value & 0x0033366D) & 0x1) << 2;
-  hamming |= (__builtin_popcount(value & 0x00C3C78E) & 0x1) << 3;
-  hamming |= (__builtin_popcount(value & 0x00FC07F0) & 0x1) << 4;
-  hamming |= (__builtin_popcount(value & 0x00FFF800) & 0x1) << 5;
-  hamming |= (__builtin_popcount(value & 0x00FFFFFF) + __builtin_popcount(hamming)) & 0x1;
-  return (value << 6) | hamming;
-}
-
-inline uintll_t computeHamming32(const uintll_t &value) {
-  uintll_t hamming = 0;
-  hamming |= (__builtin_popcount(value & 0x56AAAD5B) & 0x1) << 1;
-  hamming |= (__builtin_popcount(value & 0x9B33366D) & 0x1) << 2;
-  hamming |= (__builtin_popcount(value & 0xE3C3C78E) & 0x1) << 3;
-  hamming |= (__builtin_popcount(value & 0x03FC07F0) & 0x1) << 4;
-  hamming |= (__builtin_popcount(value & 0x03FFF800) & 0x1) << 5;
-  hamming |= (__builtin_popcount(value & 0xFC000000) & 0x1) << 6;
-  hamming |= (__builtin_popcount(value & 0xFFFFFFFF) + __builtin_popcount(hamming)) & 0x1;
-  return (value << 7) | hamming;
-}
-
-template<typename T>
-inline uintll_t computeDistance(const T &value1, const T &value2) {
-  return static_cast<uintll_t>(__builtin_popcount(value1 ^ value2));
-}
 
 typedef uintll_t (*computeHamming_ft)(const uintll_t &);
 

@@ -114,8 +114,8 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
 
 void process_result_hamming(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix)
 {
-  const size_t count_counts = n+h+1;
-  const size_t bitcount_message = n+h;
+  const uintll_t count_counts = n+h+1;
+  const uintll_t bitcount_message = n+h;
   const uintll_t count_messages = (1ull << n);
   const uint_t count_edges_shift = (n+bitcount_message);
   const uint128_t count_edges = static_cast<uint128_t>(1)<<count_edges_shift;

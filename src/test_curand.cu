@@ -430,7 +430,7 @@ extern void test_curand_raw(uintll_t n, uintll_t iterations)
     fprintf(fp,"\n");
   }
   fclose(fp);
-  printf("%u/%llu random values generated.\n", nr_rands, msgs);
+  printf("%u/%llu random values generated.\nsobol_out.csv written.\n", nr_rands, msgs);
 
   for(int i=0; i<stats.getLength(); ++i)
     printf("%s %7.2lf %s\n", stats.getLabel(i).c_str(), stats.getAverage(i), stats.getUnit(i).c_str());

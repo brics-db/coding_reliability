@@ -11,13 +11,6 @@
 #include <omp.h>
 #include <list>
 
-#ifdef _MSC_VER
-#include <intrin.h>
-#define __builtin_popcountll __popcnt64
-#endif
-
-#define bitcount __builtin_popcountll
-
 /*
  * Count undetectable bit flips for AN encoded data words.
  *

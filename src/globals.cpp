@@ -176,6 +176,7 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
   long double base1 = pow(2.0,n);
   long double base2;
   long double base;
+  double mxabs=0,mxrel=0;
   for(uint_t i=0; i<n+h+1; ++i)
   {
     base2 =binomialCoeff( static_cast<long double>(n+h), static_cast<long double>(i) );
@@ -186,10 +187,14 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
     else
       ss << setw(4) << i <<sep<< setw(14) << static_cast<uintll_t>(counts[i]);
     ss << sep << setw(14) << prob <<sep<< setw(14)<< base;
-    if(errors_abs)
+    if(errors_abs){
       ss << sep << setw(13) << setprecision(7) << errors_abs[i];
-    if(errors_rel)
+      if(errors_abs[i]>mxabs) mxabs=errors_abs[i];
+    }
+    if(errors_rel){
       ss << sep << setw(13) << setprecision(7) << errors_rel[i];
+      if(errors_rel[i]>mxrel) mxrel=errors_rel[i];
+    }
     ss << endl;
   }
   ss << endl << endl;
@@ -197,8 +202,12 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
   for(int i=0; i<stats.getLength(); ++i)
     ss << i <<sep<< '"' << stats.getLabel(i) << '"' 
        <<sep<< stats.getAverage(i) 
-       <<sep<< stats.getUnit(i) 
-       <<sep<< total << endl;
+       <<sep<< stats.getUnit(i)<<endl;
+  
+  ss << endl << "\"Total\"" <<sep<< total << endl;
+  if(errors_abs) ss<<"\"MaxAbsErr\""<<sep<<mxabs<<endl;
+  if(errors_rel) ss<<"\"MaxRelErr\""<<sep<<mxrel<<endl;
+  ss << endl;
 
   cout << ss.str();
 
@@ -226,8 +235,8 @@ void process_result_hamming_mc(uint128_t* counts, Statistics stats, uint_t n, ui
   long double total;
   double errors_abs[64];
   double errors_rel[64];
-  double max_abs_error = get_abs_error_hamming(n, counts, 0, with_1bit, errors_abs);
-  double max_rel_error = get_rel_error_hamming(n, counts, 0, with_1bit, errors_rel);
+  get_abs_error_hamming(n, counts, 0, with_1bit, errors_abs);
+  get_rel_error_hamming(n, counts, 0, with_1bit, errors_rel);
   if(file_prefix){
     sprintf(tmp_file_prefix, "%s_m%u", file_prefix, iterations);
     total = process_result(counts,stats,n,h,tmp_file_prefix, errors_abs, errors_rel);
@@ -236,8 +245,6 @@ void process_result_hamming_mc(uint128_t* counts, Statistics stats, uint_t n, ui
 
   cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<<total << " (with estimation factor 2^n*counts[d]/iterations)" << endl;
 
-  cout << "Max abs. error to solution: " << max_abs_error << endl;
-  cout << "Max rel. error to solution: " << max_rel_error << endl;
 }
 
 
@@ -262,8 +269,8 @@ void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, u
   char tmp_file_prefix[192];
   double errors_abs[64];
   double errors_rel[64];
-  double max_abs_error = get_abs_error_AN(A, n, counts, 0, errors_abs);
-  double max_rel_error = get_rel_error_AN(A, n, counts, 0, errors_rel);
+  get_abs_error_AN(A, n, counts, 0, errors_abs);
+  get_rel_error_AN(A, n, counts, 0, errors_rel);
   long double total;
   uint_t h = static_cast<uint_t>( ceil(log2(A)) );
   if(file_prefix){
@@ -274,9 +281,7 @@ void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, u
   cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<<total << " (with estimation factor 2^n*counts[d]/iterations)" << endl;
   cout << " A = ";
   printbits(A, n);
-  cout << " = " << A << endl;
-  cout << "Max abs. error to solution: " << max_abs_error << endl;
-  cout << "Max rel. error to solution: " << max_rel_error << endl;
+  cout << " = " << A << endl;  
 }
 
 void printbits(uintll_t v, uintll_t n) 

@@ -121,9 +121,9 @@ void dtest_raw(uint_t *const test, RandGenType *const state, const uint_t iterat
   state[tid] = local_state_x;
 }
 
-extern void test_curand(uintll_t n, uintll_t iterations)
+extern void test_curand(uintll_t n, uintll_t iterations, int max_nr_dev)
 {
-  int nr_dev;
+  int tmp_nr_dev;
   RandGen<RAND_GEN> gen;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -135,7 +135,8 @@ extern void test_curand(uintll_t n, uintll_t iterations)
 
 
   printf("Start cuRAND Test with %zu iterations\n", iterations);
-  CHECK_ERROR( cudaGetDeviceCount(&nr_dev) );
+  CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
+  const int nr_dev = max_nr_dev==0 ? tmp_nr_dev : min(tmp_nr_dev,max_nr_dev);
   cudaDeviceProp prop;
   printf("Found %d CUDA devices.\n", nr_dev);
   results_cpu.start(i_totaltime);
@@ -224,9 +225,9 @@ extern void test_curand(uintll_t n, uintll_t iterations)
 
 
 
-extern void test_curand_1d(uintll_t n, uintll_t iterations)
+extern void test_curand_1d(uintll_t n, uintll_t iterations, int max_nr_dev)
 {
-  int nr_dev;
+  int tmp_nr_dev;
   RandGen<RAND_GEN> gen;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -238,7 +239,8 @@ extern void test_curand_1d(uintll_t n, uintll_t iterations)
 
 
   printf("Start cuRAND Test with %zu iterations\n", iterations);
-  CHECK_ERROR( cudaGetDeviceCount(&nr_dev) );
+  CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
+  const int nr_dev = max_nr_dev==0 ? tmp_nr_dev : min(tmp_nr_dev,max_nr_dev);
   cudaDeviceProp prop;
   printf("Found %d CUDA devices.\n", nr_dev);
   results_cpu.start(i_totaltime);
@@ -330,10 +332,9 @@ extern void test_curand_1d(uintll_t n, uintll_t iterations)
 }
 
 
-extern void test_curand_raw(uintll_t n, uintll_t iterations)
+extern void test_curand_raw(uintll_t n, uintll_t iterations, int max_nr_dev)
 {
-  int nr_dev;
-  RandGen<RAND_GEN> gen;
+  int tmp_nr_dev;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
   TimeStatistics results_gpu (&stats,GPU_TIME);
@@ -344,24 +345,22 @@ extern void test_curand_raw(uintll_t n, uintll_t iterations)
 
 
   printf("Start cuRAND Test Raw with %zu iterations\n", iterations);
-  CHECK_ERROR( cudaGetDeviceCount(&nr_dev) );
+  CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
+  const int nr_dev = max_nr_dev==0 ? tmp_nr_dev : min(tmp_nr_dev,max_nr_dev);
   cudaDeviceProp prop;
   printf("Found %d CUDA devices.\n", nr_dev);
   results_cpu.start(i_totaltime);
 
-  uintll_t msgs = 1ull<<n;
-  dim3 threads(128, 1, 1);
-//  dim3 blocks(min(20000ull,msgs/nr_dev/iterations)/threads.x, 1, 1);
-// @todo find better block formula
-  dim3 blocks((msgs/nr_dev/iterations+threads.x-1)/threads.x, 1, 1);
-  blocks.y = floor(sqrt(blocks.x)+0.5);
-  blocks.x = blocks.y;
+  const dim3 threads(128, 1, 1);
+  const uintll_t msgs = 1ull<<n;
+  const uint_t xblocks = ceil(sqrt(msgs/nr_dev/threads.x));
+  const dim3 blocks(xblocks, xblocks);
+  const uint_t max_threads = min(msgs, (uintll_t)threads.x * blocks.x * blocks.y);
 
-  uint_t max_threads = threads.x * blocks.x * blocks.y;
-  //printf("%u\n", max_threads);
-  uint_t numbers_length = iterations*max_threads;
+  const uint_t numbers_length = iterations*max_threads;
   uint_t* numbers = new uint_t[nr_dev*numbers_length];
   memset(numbers,0,nr_dev*numbers_length*sizeof(uint_t));
+
 
 #pragma omp parallel for num_threads(nr_dev) schedule(dynamic)
   for(int dev=0; dev<nr_dev; ++dev)
@@ -369,7 +368,8 @@ extern void test_curand_raw(uintll_t n, uintll_t iterations)
     CHECK_ERROR( cudaSetDevice(dev) );
     CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
 
-    gen.init(blocks, threads, 1337, 1, dev);
+    RandGen<RAND_GEN> gen;
+    gen.init(blocks, threads, 1337+8137*xblocks*xblocks*threads.x*dev, 1, dev);
 
     printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
     printf("Dev %d: Blocks: %d %d, max threads %u\n", dev, blocks.x, blocks.y, max_threads);
@@ -427,7 +427,7 @@ extern void test_curand_raw(uintll_t n, uintll_t iterations)
     fprintf(fp,"\n");
   }
   fclose(fp);
-  printf("%u/%llu random values generated.\nsobol_out.csv written.\n", nr_rands, msgs);
+  printf("%u/%llu random values generated.\nsobol_out.csv written.\n", nr_rands, msgs*msgs);
 
   for(int i=0; i<stats.getLength(); ++i)
     printf("%s %7.2lf %s\n", stats.getLabel(i).c_str(), stats.getAverage(i), stats.getUnit(i).c_str());

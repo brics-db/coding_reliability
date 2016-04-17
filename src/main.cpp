@@ -176,7 +176,7 @@ int main(int argc, char** argv)
   }
   parse_cmdline(argc,argv);
   if(g_flags.rand_gen)
-    test_curand_raw(g_flags.n, g_flags.mc_iterations);
+    test_curand_raw(g_flags.n, g_flags.mc_iterations, g_flags.nr_dev);
   else if(g_flags.an_coding){  /* AN-coding */
     if(g_flags.mc_search_bound>0.0)
       ancoding_mc_search();

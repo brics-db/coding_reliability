@@ -16,9 +16,6 @@
 #include <curand_kernel.h>
 
 
-//typedef curandStateScrambledSobol32_t RAND_GEN;
-//typedef curandStateSobol32_t RAND_GEN;
-typedef curandState_t RAND_GEN;
 const int USE_ORDER=0; // for 2d with y>x mapping
 
 using namespace std;

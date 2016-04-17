@@ -26,6 +26,6 @@ LIST(APPEND CUDA_NVCC_FLAGS "-gencode arch=compute_37,code=compute_37")
 LIST(APPEND CUDA_NVCC_FLAGS "-std=c++11 -Xcompiler -fopenmp")
 SET(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
-LIST(APPEND SOURCES main.cpp globals.cpp hamming.cpp hamming_native.cpp hamming_native_short.cpp hamming_native_short_ordering.cpp hamming.cu an_coding.cu an_coding.cpp an_coding_mc.cu test_curand.cu rand_gen.cu)
+LIST(APPEND SOURCES main.cpp globals.cpp hamming.cpp hamming_native.cpp hamming_native_short.cpp hamming_native_short_ordering.cpp hamming.cu hamming_mc.cu an_coding.cu an_coding.cpp an_coding_mc.cu test_curand.cu rand_gen.cu)
 CUDA_ADD_EXECUTABLE(${PROJECT_NAME} ${SOURCES})
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${CUDA_LIBRARIES} ${CUDA_curand_LIBRARY} helper rt)

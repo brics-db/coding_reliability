@@ -1,64 +1,97 @@
 #include "globals.h"
-
+#include "solutions.h"
 #include <helper.h>
-
+#include <string.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 using namespace std;
 
-static
-std::ostream&
-operator<<( std::ostream& dest, uint128_t value );
+
 void printbits(uintll_t v, uintll_t n);
 
-static long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix);
+static long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix, double* errors_abs=nullptr, double* errors_rel=nullptr);
 
-double get_rel_error_AN641(uint_t n, uint128_t* tgt, int offset)
+static void get_sol_hamming(uint128_t* sol, uint_t n, uint_t *h_out)
 {
-  const uint128_t* sol = NULL;
-  if(n==24)
-    sol = solution_an24_A641;
-  else if(n==16)
-    sol = solution_an16_A641;
-  else if(n==8)
-    sol = solution_an8_A641;
-  else
-    return -1.0;
+  const uint128_t* sol_base;
+  *h_out = n==8?5:n==16||n==24?6:7;
+  uint_t h = *h_out;
+  switch(n)
+  {
+  case 8:
+    sol_base = sol_hamming_n8;
+    break;
+  case 16:
+    sol_base = sol_hamming_n16;
+    break;
+  case 24:
+    sol_base = sol_hamming_n24;
+    break;
+  case 32:
+    sol_base = sol_hamming_n32;
+    break;
+  default:
+    throw std::runtime_error("Wrong n for hamming.");
+  }
+  sol[0] = 1ull<<n;
+// 1-bit sphere  
+  sol[1] = (n+h)*sol[0];  
+  for (uint_t i = 3; i < n+h+1; i+=2)
+  {
+    if(i+1<n+h+1){
+      sol[i+1] = sol_base[i+1]<<n;
+      sol[i] = uint128_t(i+1)*sol[i+1] + uint128_t(n+h-i+1)*sol[i-1];
+    }else
+      sol[i] = uint128_t(n+h-i+1)*sol[i-1];
+  }    
+}
+
+double get_rel_error_hamming(uint_t n, uint128_t* tgt, int offset, int w1bit, double* errors)
+{
+  uint128_t sol[64] = {0};
   double max_err=0;
   double err = 0;
   double p;
-  for(uint_t k=offset; k<n+10; ++k)
+  uint_t h = 0;
+  if(errors)
+    memset(errors,0,(n+h+1)*sizeof(double));
+  get_sol_hamming(sol, n, &h);
+  if(w1bit==0 && (offset&1)==1) offset+=1;
+  for(uint_t k=offset; k<n+h+1; k+= w1bit?1:2)
   {
-    p = static_cast<double>(sol[k]);// / sum;
+    p = static_cast<double>(sol[k]);
     if(p>0.)
       err = fabs(static_cast<double>(tgt[k])/p-1.0);
     else if(tgt[k]>0)
       err = 1.0;
-
+    else
+      err = 0.0;
+    if(errors)
+      errors[k] = err;
     if(err>max_err)
       max_err = err;
   }
   return max_err;
 }
-double get_abs_error_AN641(uint_t n, uint128_t* tgt, int offset)
+
+double get_abs_error_hamming(uint_t n, uint128_t* tgt, int offset, int w1bit, double* errors)
 {
-  const uint128_t* sol = NULL;
-  if(n==24)
-    sol = solution_an24_A641;
-  else if(n==16)
-    sol = solution_an16_A641;
-  else if(n==8)
-    sol = solution_an8_A641;
-  else
-    return -1.0;
+  uint128_t sol[64] = {0};
   double max_err=0;
   double err = 0;
   double p;
-  for(uint_t k=offset; k<n+10; ++k)
+  uint_t h=0;
+  if(errors)
+    memset(errors,0,(n+h+1)*sizeof(double));
+  get_sol_hamming(sol,n, &h);
+  if(w1bit==0 && (offset&1)==1) offset+=1;
+  for(uint_t k=offset; k<n+h+1; k+= w1bit?1:2)
   {
     p = static_cast<double>(sol[k]>tgt[k] ? sol[k]-tgt[k] : tgt[k]-sol[k]);
-    err = p/(pow(2.0,10.0+n)*binomialCoeff(static_cast<double>(n)+10.0,static_cast<double>(k)));
+    err = p/(pow(2.0,n)*binomialCoeff(static_cast<double>(n)+h,static_cast<double>(k)));
+    if(errors)
+      errors[k] = err;
 
     if(err>max_err)
       max_err = err;
@@ -66,7 +99,71 @@ double get_abs_error_AN641(uint_t n, uint128_t* tgt, int offset)
   return max_err;
 }
 
-long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix)
+double get_rel_error_AN(uintll_t A, uint_t n, uint128_t* tgt, int offset, double* errors)
+{
+  const uint128_t* sol = NULL;
+  if(n==24)
+    sol = A==641 ? solution_an24_A641 : solution_an24_A61;
+  else if(n==16)
+    sol = A==641 ? solution_an16_A641 : solution_an16_A61;
+  else if(n==8)
+    sol = A==641 ? solution_an8_A641 : solution_an8_A61;
+  else
+    return -1.0;
+  uint_t h = A==641 ? 10 : 6;
+  double max_err=0;
+  double err = 0;
+  double p;
+  if(errors)
+    memset(errors,0,(n+h+1)*sizeof(double));
+  for(uint_t k=offset; k<n+h; ++k)
+  {
+    p = static_cast<double>(sol[k]);
+    if(p>0.)
+      err = fabs(static_cast<double>(tgt[k])/p-1.0);
+    else if(tgt[k]>0)
+      err = 1.0;
+    else
+      err = 0.0;
+
+    if(errors)
+      errors[k] = err;
+    if(err>max_err)
+      max_err = err;
+  }
+  return max_err;
+}
+double get_abs_error_AN(uintll_t A, uint_t n, uint128_t* tgt, int offset, double* errors)
+{
+  const uint128_t* sol = NULL;
+  if(n==24)
+    sol = A==641 ? solution_an24_A641 : solution_an24_A61;
+  else if(n==16)
+    sol = A==641 ? solution_an16_A641 : solution_an16_A61;
+  else if(n==8)
+    sol = A==641 ? solution_an8_A641 : solution_an8_A61;
+  else
+    return -1.0;
+  uint_t h = A==641 ? 10 : 6;
+  double max_err=0;
+  double err = 0;
+  double p;
+  if(errors)
+    memset(errors,0,(n+h+1)*sizeof(double));
+  for(uint_t k=offset; k<n+h; ++k)
+  {
+    p = static_cast<double>(sol[k]>tgt[k] ? sol[k]-tgt[k] : tgt[k]-sol[k]);
+    err = p/(pow(2.0,n)*binomialCoeff(static_cast<double>(n)+h,static_cast<double>(k)));
+
+    if(errors)
+      errors[k] = err;
+    if(err>max_err)
+      max_err = err;
+  }
+  return max_err;
+}
+
+long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix, double* errors_abs, double* errors_rel)
 {
   stringstream ss;
   char sep = ',';
@@ -88,9 +185,15 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
       ss << setw(4) << i <<sep<< setw(12) << setprecision(12)<<static_cast<long double>(counts[i]);
     else
       ss << setw(4) << i <<sep<< setw(14) << static_cast<uintll_t>(counts[i]);
-    ss << sep << setw(14) << prob <<sep<< setw(14)<< base << endl;
+    ss << sep << setw(14) << prob <<sep<< setw(14)<< base;
+    if(errors_abs)
+      ss << sep << setw(13) << setprecision(7) << errors_abs[i];
+    if(errors_rel)
+      ss << sep << setw(13) << setprecision(7) << errors_rel[i];
+    ss << endl;
   }
   ss << endl << endl;
+
   for(int i=0; i<stats.getLength(); ++i)
     ss << i <<sep<< '"' << stats.getLabel(i) << '"' 
        <<sep<< stats.getAverage(i) 
@@ -114,33 +217,27 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
 
 void process_result_hamming(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix)
 {
-  const uintll_t count_counts = n+h+1;
-  const uintll_t bitcount_message = n+h;
-  const uintll_t count_messages = (1ull << n);
-  const uint_t count_edges_shift = (n+bitcount_message);
-  const uint128_t count_edges = static_cast<uint128_t>(1)<<count_edges_shift;
-  const uintll_t mul_1distance = bitcount_message;
-  const uintll_t mul_2distance = bitcount_message * (bitcount_message - 1ull) / 2ull;
-
   long double total = process_result(counts, stats, n, h, file_prefix);
+  cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<< total << endl;
+}
+void process_result_hamming_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t h, int with_1bit, uint_t iterations, const char* file_prefix)
+{
+  char tmp_file_prefix[192];
+  long double total;
+  double errors_abs[64];
+  double errors_rel[64];
+  double max_abs_error = get_abs_error_hamming(n, counts, 0, with_1bit, errors_abs);
+  double max_rel_error = get_rel_error_hamming(n, counts, 0, with_1bit, errors_rel);
+  if(file_prefix){
+    sprintf(tmp_file_prefix, "%s_m%u", file_prefix, iterations);
+    total = process_result(counts,stats,n,h,tmp_file_prefix, errors_abs, errors_rel);
+  }else
+    total = process_result(counts,stats,n,h,nullptr, errors_abs, errors_rel);
 
-  // for 16-bit data:
-  // 2^16 different messages --> 2^16 * 2^16 (legal code words) + 2^16*2^16*22 (all 1-bit-differences) - 2^16*23 (edges to self and self-1bit-diff)
-/*  cout << "counted edges (undetectable bit flips, i.e. distance >= 3 to either other codewords or into the 1-distance sphere around other codewords)\n";
-  cout << "    => \"all bit flips that result in either another codeword or in a word with distance of 1 to another codeword\"\n";
-  cout << "    = " << total << "\n\n";
+  cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<<total << " (with estimation factor 2^n*counts[d]/iterations)" << endl;
 
-  cout << "total edges for " << n << "- bit data: " << (count_messages * count_messages * count_counts - (count_messages * count_counts)) << '\n';
-  cout << "all possible edges for " << bitcount_message << "-bit messages...\n";
-  cout << "    from codewords to all other words (extended hamming): 2^" << n << " * 2^" << bitcount_message << " = " << count_edges << '\n';
-  cout << "    without self-edges (weight = 0) : 2^" << (n + bitcount_message) << " - 2^" << n << " = " << (count_edges - (0x1ull << n))
-      << '\n';
-  cout << "    without detectable bit flips (weight={0,1,2}) : 2^" << (n + bitcount_message) << " - 2^" << n << " - 2^" << n << "*"
-      << mul_1distance << " - 2^" << n << "*(sum(i=" << (mul_1distance - 1) << ":1, i)\n";
-  cout << "        = 2^" << count_edges_shift << " - 2^" << n << " - 2^" << n << "*" << mul_1distance << " - 2^" << n << "*"
-      << mul_2distance;
-  cout << "        = " << static_cast<uintll_t>(count_edges - (0x1ull << n) - (0x1ull << n) * mul_1distance - (0x1ull << n) * mul_2distance) << '\n';
-*/
+  cout << "Max abs. error to solution: " << max_abs_error << endl;
+  cout << "Max rel. error to solution: " << max_rel_error << endl;
 }
 
 
@@ -163,17 +260,23 @@ void process_result_ancoding(uint128_t* counts, Statistics stats, uint_t n, uint
 void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t A, uint_t iterations, const char* file_prefix)
 {
   char tmp_file_prefix[192];
+  double errors_abs[64];
+  double errors_rel[64];
+  double max_abs_error = get_abs_error_AN(A, n, counts, 0, errors_abs);
+  double max_rel_error = get_rel_error_AN(A, n, counts, 0, errors_rel);
   long double total;
   uint_t h = static_cast<uint_t>( ceil(log2(A)) );
   if(file_prefix){
     sprintf(tmp_file_prefix, "%s_m%u_A%u", file_prefix, iterations, A);
-    total = process_result(counts,stats,n,h,tmp_file_prefix);
+    total = process_result(counts,stats,n,h,tmp_file_prefix, errors_abs, errors_rel);
   }else
-    total = process_result(counts,stats,n,h,nullptr);
-  cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<<total << "(with estimation factor 2^n*counts[d]/iterations)" << endl;
+    total = process_result(counts,stats,n,h,nullptr, errors_abs, errors_rel);
+  cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<<total << " (with estimation factor 2^n*counts[d]/iterations)" << endl;
   cout << " A = ";
   printbits(A, n);
   cout << " = " << A << endl;
+  cout << "Max abs. error to solution: " << max_abs_error << endl;
+  cout << "Max rel. error to solution: " << max_rel_error << endl;
 }
 
 void printbits(uintll_t v, uintll_t n) 

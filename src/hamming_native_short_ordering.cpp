@@ -34,7 +34,7 @@ void countHammingUndetectableErrors(uint128_t* result_counts)
     {
       cout << "OpenMP using " << omp_get_num_threads() << " threads" << endl;
     }*/
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic,1)
     for(T a=0; a<CNT_MESSAGES; ++a)
     {
       memset(counts_local, 0, CNT_COUNTS*sizeof(T));
@@ -61,10 +61,7 @@ void countHammingUndetectableErrors(uint128_t* result_counts)
       }      
     }
   }
-  result_counts[0] = 1ull<<BITCNT_DATA;
-  result_counts[1] = (BITCNT_MSG)*result_counts[0];
-  result_counts[2] = 0;
-  for(uint_t i=3;i<CNT_COUNTS; ++i){
+  for(uint_t i=0;i<CNT_COUNTS; ++i){
     result_counts[i] = static_cast<uint128_t>(counts[i])<<1;
     //printf("%u %12llu\n", i, counts[i]);
   }

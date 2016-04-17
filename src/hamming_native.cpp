@@ -32,84 +32,81 @@ void countHammingUndetectableErrors(uint128_t* result_counts, int with_1bit)
 #pragma omp parallel
   {
 /*
-#pragma omp master
-    {
-      cout << "OpenMP using " << omp_get_num_threads() << " threads" << endl;
-    }*/
+  #pragma omp master
+  {
+  cout << "OpenMP using " << omp_get_num_threads() << " threads" << endl;
+  }*/
 #pragma omp for schedule(dynamic,1)
-#ifdef _MSC_VER
-    for (__int64 shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) {
-#else
-      for (uintll_t shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) {
-#endif
-        uintll_t counts_local[CNT_COUNTS] = { 0 };
-        T messages[SZ_SHARDS] = { 0 };
-        T messages2[SZ_SHARDS] = { 0 };
-        uintll_t distance;
+    for (uintll_t shardX = 0; shardX < CNT_MESSAGES; shardX += SZ_SHARDS) 
+    {
+      uintll_t counts_local[CNT_COUNTS] = { 0 };
+      T messages[SZ_SHARDS] = { 0 };
+      T messages2[SZ_SHARDS] = { 0 };
+      uintll_t distance;
 
-        // 1) precompute Hamming values for this slice, i.e. the "originating" codewords
-        for (uintll_t x = shardX, k = 0; k < SZ_SHARDS; ++x, ++k) {
-          messages[k] = func(x);
+      // 1) precompute Hamming values for this slice, i.e. the "originating" codewords
+      for (uintll_t x = shardX, k = 0; k < SZ_SHARDS; ++x, ++k) {
+        messages[k] = func(x);
+      }
+
+      // 2) Triangle for main diagonale
+      for (uintll_t x = 0; x < SZ_SHARDS; ++x) {
+        distance = computeDistance(messages[x], messages[x]);
+        ++counts_local[distance];
+        for (uintll_t y = (x + 1); y < SZ_SHARDS; ++y) {
+          distance = computeDistance(messages[x], messages[y]);
+          counts_local[distance] += 2;
+        }
+      }
+
+      // 3) Remainder of the slice
+      for (uintll_t shardY = shardX + SZ_SHARDS; shardY < CNT_MESSAGES; shardY += SZ_SHARDS) {
+        // 3.1) Precompute other code words
+        for (uintll_t y = shardY, k = 0; k < SZ_SHARDS; ++y, ++k) {
+          messages2[k] = func(y);
         }
 
-        // 2) Triangle for main diagonale
+        // 3.2) Do the real work
         for (uintll_t x = 0; x < SZ_SHARDS; ++x) {
-          distance = computeDistance(messages[x], messages[x]);
-          ++counts_local[distance];
-          for (uintll_t y = (x + 1); y < SZ_SHARDS; ++y) {
-            distance = computeDistance(messages[x], messages[y]);
+          for (uintll_t y = 0; y < SZ_SHARDS; ++y) {
+            distance = computeDistance(messages[x], messages2[y]);
             counts_local[distance] += 2;
           }
         }
+      }
 
-        // 3) Remainder of the slice
-        for (uintll_t shardY = shardX + SZ_SHARDS; shardY < CNT_MESSAGES; shardY += SZ_SHARDS) {
-          // 3.1) Precompute other code words
-          for (uintll_t y = shardY, k = 0; k < SZ_SHARDS; ++y, ++k) {
-            messages2[k] = func(y);
-          }
-
-          // 3.2) Do the real work
-          for (uintll_t x = 0; x < SZ_SHARDS; ++x) {
-            for (uintll_t y = 0; y < SZ_SHARDS; ++y) {
-              distance = computeDistance(messages[x], messages2[y]);
-              counts_local[distance] += 2;
-            }
-          }
-        }
-
-        // 4) Sum the counts
-        for (uintll_t i = 0; i < CNT_COUNTS; ++i) {
+      // 4) Sum the counts
+      for (uintll_t i = 0; i < CNT_COUNTS; ++i) {
 #pragma omp atomic
-          counts[i] += counts_local[i];
-        }
+        counts[i] += counts_local[i];
+      }
 
-        uintll_t shardsComputed = CNT_SLICES - (static_cast<float>(shardX) / SZ_SHARDS);
-        float inc = static_cast<float>(shardsComputed * 2 - 1) / CNT_SHARDS * 100;
+      uintll_t shardsComputed = CNT_SLICES - (static_cast<float>(shardX) / SZ_SHARDS);
+      float inc = static_cast<float>(shardsComputed * 2 - 1) / CNT_SHARDS * 100;
 
 #pragma omp atomic
-        shardsDone += inc;
+      shardsDone += inc;
 
 /*        if (omp_get_thread_num() == 0) {
           cout << "\b\b\b\b\b\b\b\b\b\b" << right << setw(9) << setprecision(5) << shardsDone << '%' << flush;*/
         
-      }
     }
+  }
   
-    if(with_1bit)
-    {    
+  if(with_1bit)
+  {    
 /*    cout << "\b\b\b\b\b\b\b\b\b\b" << right << setw(9) << setprecision(5) << shardsDone << '%' << flush;*/
 
-      counts[1] = counts[0] * BITCNT_MSG;
-      cout << dec << "\n#Distances:\n";
-      for (uintll_t i = 3; i < CNT_COUNTS; i += 2) {
-        counts[i] = (counts[i - 1] * (BITCNT_MSG - i + 1)) + ((i + 1) < CNT_COUNTS ? (counts[i + 1] * (i + 1)) : 0);
-      }
-      for (uintll_t i = 0; i < CNT_COUNTS; ++i) {
-        cout << "  " << right << setw(2) << i << ": " << setw(13) << counts[i] << '\n';
-      }
+    counts[1] = counts[0] * BITCNT_MSG;
+    cout << dec << "\n#Distances:\n";
+    for (uintll_t i = 3; i < CNT_COUNTS; i += 2) {
+      counts[i] = (counts[i - 1] * (BITCNT_MSG - i + 1)) + ((i + 1) < CNT_COUNTS ? (counts[i + 1] * (i + 1)) : 0);
     }
-    //cout << "Computation took " << sw << "ns." << endl;
+    for (uintll_t i = 0; i < CNT_COUNTS; ++i) {
+      cout << "  " << right << setw(2) << i << ": " << setw(13) << counts[i] << '\n';
+    }
+  }
+  //cout << "Computation took " << sw << "ns." << endl;
 
   for(uintll_t i=0;i<CNT_COUNTS; ++i)
     result_counts[i] = static_cast<uint128_t>(counts[i]);

@@ -35,9 +35,9 @@ void dancoding(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll
     atomicAdd(counts+c, counts_local[c]);
 }
 
-void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t* mincb, int file_output)
+void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
 {
-  int nr_dev;
+  int tmp_nr_dev;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
   TimeStatistics results_gpu (&stats,GPU_TIME);
@@ -47,7 +47,8 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   results_gpu.setFactorAll(0.001);
 
 
-  CHECK_ERROR( cudaGetDeviceCount(&nr_dev) );
+  CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
+  const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
   cudaDeviceProp prop;
   if(verbose){
     printf("Start AN-Coding Algorithm\n");

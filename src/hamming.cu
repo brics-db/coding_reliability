@@ -12,9 +12,6 @@
 #include <vector>
 using namespace std;
 
-std::ostream&
-operator<<( std::ostream& dest, uint128_t value );
-
 template<int N>
 __device__ inline uintll_t computeHamming(const uintll_t &value) {
   uintll_t hamming = 0;
@@ -53,7 +50,7 @@ void dhamming(uintll_t* counts, uintll_t offset, uintll_t end)
     atomicAdd(counts+c, counts_local[c]);
 }
 
-void run_hamming(uintll_t n, int with_1bit, int file_output)
+void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
 {
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -67,7 +64,7 @@ void run_hamming(uintll_t n, int with_1bit, int file_output)
 
   int tmp_nr_dev;
   CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
-  const int nr_dev = tmp_nr_dev;
+  const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
   cudaDeviceProp prop;
   CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
   printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
@@ -182,11 +179,12 @@ void run_hamming(uintll_t n, int with_1bit, int file_output)
     delete[] hcounts[dev];
   }
 
+
   
   // results
   uint128_t counts[40] = {0};
   counts[0] = 1ull<<n;
-  counts[1] = uint128_t (1ull<<n)*(bitcount_message);
+  counts[1] = with_1bit ? uint128_t(1ull<<n)*(bitcount_message) : 0;
   counts[2] = 0;
   // 
   for(uint_t i=4; i<count_counts; i+=2)
@@ -194,6 +192,9 @@ void run_hamming(uintll_t n, int with_1bit, int file_output)
     counts[i] = hcounts[0][i] + hcounts[0][i-1];
     counts[i-1] = 0;
   }
+  for(uint_t i=3; i<count_counts; ++i)
+    cout << counts[i] << ",";
+  cout << endl;
   if(with_1bit)
   {  
     // 1-bit sphere  

@@ -55,7 +55,7 @@ void hamming_cpu(uint128_t* counts, int with_1bit)
 
   }
   counts[0] = 1ull<<N;
-  counts[1] = (N+h)*counts[0];
+  counts[1] = with_1bit ? (N+h)*counts[0] : 0;
   //counts[2] = 0;
   for(uint_t d=4; d<count_counts; d+=2)
   {

@@ -34,7 +34,7 @@ void countHammingUndetectableErrors(uint128_t* result_counts)
     {
       cout << "OpenMP using " << omp_get_num_threads() << " threads" << endl;
     }*/
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic,1)
     for(T a=0; a<CNT_MESSAGES; ++a)
     {
       memset(counts_local, 0, CNT_COUNTS*sizeof(T));

@@ -51,4 +51,5 @@ template<typename T>
 inline uintll_t computeDistance(const T &value1, const T &value2) {
   return static_cast<uintll_t>(bitcount(value1 ^ value2));
 }
+
 #endif

@@ -48,4 +48,10 @@ struct RandGen<curandStateScrambledSobol32_t> {
   void free();
 };
 
+//typedef curandStateScrambledSobol32_t RAND_GEN;
+//typedef curandStateSobol32_t RAND_GEN;
+typedef curandStateSobol64_t RAND_GEN;
+//typedef curandState_t RAND_GEN;
+
+
 #endif /* RAND_GEN_CUH_ */

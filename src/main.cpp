@@ -155,13 +155,15 @@ void ancoding_mc_search()
   printf("AN-Coding MonteCarlo starting with %zd iterations\n", nr_iterations);
   FILE* f = fopen("ancoding_mc_search.csv","w");
   double times[2];
-  while(cur_err>g_flags.mc_search_bound)
+  while(1)
   {
     cur_err = run_ancoding_mc(g_flags.n, nr_iterations, g_flags.A, 0, times, nullptr, nullptr,0, g_flags.nr_dev);
     printf("%zd iterations - max. rel. error %lf\n",nr_iterations, cur_err);
     fprintf(f, "%d,%zd,%lf,%zd,%lf,%lf,%lf\n",
             step,g_flags.n, g_flags.mc_search_bound, nr_iterations, cur_err, times[0], times[1]);
-    nr_iterations+=1000;
+    if(cur_err<=g_flags.mc_search_bound)
+      break;
+    nr_iterations*=3;
     ++step;
   }
   fclose(f);

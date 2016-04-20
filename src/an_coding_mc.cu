@@ -16,7 +16,6 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-
 template<uintll_t ShardSize,uint_t CountCounts, typename RandGenType>
 __global__
 void dancoding_mc(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state, uintll_t iterations)
@@ -38,7 +37,7 @@ void dancoding_mc(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uin
     it = 0;
     while(it<iterations)
     {
-      v = static_cast<uintll_t>( static_cast<double>(1ull<<n) * curand_uniform(&local_state));
+      v = static_cast<uintll_t>( static_cast<double>(1ull<<n) * curand_uniform_double(&local_state));
       v *= A;
       ++counts_local[ __popcll( w^v ) ];
       ++it;

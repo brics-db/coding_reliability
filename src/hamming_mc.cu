@@ -58,7 +58,7 @@ void dhamming_mc(uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *s
     x = computeHamming<N>(w);
     while(it<iterations)
     {
-      v = static_cast<uintll_t>( static_cast<double>(1ull<<N) * curand_uniform(&local_state));
+      v = static_cast<uintll_t>( static_cast<double>(1ull<<N) * curand_uniform_double(&local_state));
       y = computeHamming<N>(v);
       ++counts_local[ __popcll( x^y ) ];
       ++it;
@@ -99,7 +99,7 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = n==8?1:256;
+  const uintll_t size_shards = n==8 ? 1 : n==16 ? 16 : n==24 ? 128 : 512; // also used in template kernel launch
   const uintll_t count_shards = count_messages / size_shards;
   const uint_t h = ( n==8 ? 5 : (n<32?6:7) );
   const uintll_t bitcount_message = n + h;

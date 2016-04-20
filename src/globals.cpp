@@ -7,6 +7,7 @@
 #include <sstream>
 using namespace std;
 
+static const int OFFSET = 2;
 
 void printbits(uintll_t v, uintll_t n);
 
@@ -235,8 +236,8 @@ void process_result_hamming_mc(uint128_t* counts, Statistics stats, uint_t n, ui
   long double total;
   double errors_abs[64];
   double errors_rel[64];
-  get_abs_error_hamming(n, counts, 0, with_1bit, errors_abs);
-  get_rel_error_hamming(n, counts, 0, with_1bit, errors_rel);
+  get_abs_error_hamming(n, counts, OFFSET, with_1bit, errors_abs);
+  get_rel_error_hamming(n, counts, OFFSET, with_1bit, errors_rel);
   if(file_prefix){
     sprintf(tmp_file_prefix, "%s_m%u", file_prefix, iterations);
     total = process_result(counts,stats,n,h,tmp_file_prefix, errors_abs, errors_rel);
@@ -269,8 +270,8 @@ void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, u
   char tmp_file_prefix[192];
   double errors_abs[64];
   double errors_rel[64];
-  get_abs_error_AN(A, n, counts, 0, errors_abs);
-  get_rel_error_AN(A, n, counts, 0, errors_rel);
+  get_abs_error_AN(A, n, counts, OFFSET, errors_abs);
+  get_rel_error_AN(A, n, counts, OFFSET, errors_rel);
   long double total;
   uint_t h = static_cast<uint_t>( ceil(log2(A)) );
   if(file_prefix){

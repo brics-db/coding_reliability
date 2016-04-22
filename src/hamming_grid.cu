@@ -33,32 +33,23 @@ __device__ inline uintll_t computeHamming(const uintll_t &value) {
 
 template<uintll_t N, uintll_t ShardSize,int CountCounts>
 __global__
-void dhamming_grid_1d(uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations)
+void dhamming_grid_1d(uintll_t* counts, uintll_t offset, uintll_t end, double stepsize)
 {
   uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
   if(shardXid>=end)
     return;
 
   uintll_t counts_local[CountCounts] = { 0 };
-
-  uintll_t w = shardXid * ShardSize;
-  uintll_t wend = (shardXid+1) * ShardSize;
-  uintll_t v;
-  uintll_t x,y;
-  uintll_t it = 0;
-  for(;w<wend;++w)
+  uintll_t w = shardXid * ShardSize * (uintll_t)stepsize;
+  uintll_t x;
+  
+  for(uintll_t k=0; k<ShardSize; ++k)
   {
-    it = 0;
-    x = computeHamming<N>(w);
-    while(it<iterations)
-    {
-      v = (1ull<<N)*it/iterations; // @todo check for overflow
-      y = computeHamming<N>(v);
-
-      ++counts_local[ __popcll( x^y ) ];
-      ++it;
-    }
+    x = w;
+    x += k*stepsize;
+    ++counts_local[ __popcll( computeHamming<N>( x ) ) ];
   }
+
   for(int c=0; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
@@ -69,13 +60,14 @@ void dhamming_grid_1d(uintll_t* counts, uintll_t offset, uintll_t end, uintll_t 
 template<uintll_t N>
 struct Caller
 {
-  void operator()(dim3 blocks, dim3 threads, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations){
-    dhamming_grid_1d<N, Hamming::traits::Shards<N>::value, Hamming::traits::CountCounts<N>::value ><<< blocks, threads >>>(counts, offset, end, iterations);
+  template<typename T>
+  void operator()(dim3 blocks, dim3 threads, uintll_t* counts, uintll_t offset, uintll_t end, T stepsize){
+    dhamming_grid_1d<N, Hamming::traits::Shards<N>::value, Hamming::traits::CountCounts<N>::value ><<< blocks, threads >>>(counts, offset, end, stepsize);
   }
 };
 
 
-double run_hamming_grid(int gdim, uintll_t n, int with_1bit, uintll_t iterations, int file_output, int nr_dev_max)
+double run_hamming_grid(uintll_t n, int with_1bit, uintll_t iterations, int file_output, int nr_dev_max)
 {
   int tmp_nr_dev;
   Statistics stats;
@@ -92,7 +84,7 @@ double run_hamming_grid(int gdim, uintll_t n, int with_1bit, uintll_t iterations
   cudaDeviceProp prop;
   CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
   if(verbose){
-    printf("Start Hamming-Coding Algorithm - %dD Grid with %zu iterations\n", gdim, iterations);
+    printf("Start 1D Hamming-Coding Algorithm - 1D Grid with %zu iterations\n", iterations);
     printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
   }
   // skip init time
@@ -106,11 +98,12 @@ double run_hamming_grid(int gdim, uintll_t n, int with_1bit, uintll_t iterations
 
   const uintll_t count_messages = (1ull << n);
   const uintll_t size_shards = Hamming::getShardsSize(n); // also used in template kernel launch
-  const uintll_t count_shards = count_messages / size_shards;
+  iterations = iterations>count_messages?count_messages:iterations;
+
+  const uintll_t count_shards = iterations / size_shards; // parallelize over iterations number
   const uint_t h = ( n==8 ? 5 : (n<32?6:7) );
   const uintll_t bitcount_message = n + h;
   const uint_t count_counts = bitcount_message + 1;
-  iterations = iterations>count_messages?count_messages:iterations;
 
 
   uintll_t** dcounts;
@@ -151,11 +144,10 @@ double run_hamming_grid(int gdim, uintll_t n, int with_1bit, uintll_t iterations
       printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
     }
 
-    //dim3 blocks( (count_shards / threads.x)/2, 2 );
     if(dev==0)
       results_gpu.start(i_runtime);
 
-    Hamming::bridge<Caller>(n, blocks, threads, dcounts[dev], offset, end,  iterations);
+    Hamming::bridge<Caller>(n, blocks, threads, dcounts[dev], offset, end, 1.0L*count_messages/iterations);
 
     CHECK_LAST("Kernel failed.");
 
@@ -183,10 +175,10 @@ double run_hamming_grid(int gdim, uintll_t n, int with_1bit, uintll_t iterations
 
   // results
   uint128_t counts[64] = {0};
-  counts[0] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*(hcounts[0][0])/iterations));
+  counts[0] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*(hcounts[0][0])));
   for(uint_t i=2; i<count_counts; i+=2)
   {
-    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*(hcounts[0][i]+hcounts[0][i-1])/iterations));
+    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*(hcounts[0][i]+hcounts[0][i-1])));
   }
   if(with_1bit)
   {  

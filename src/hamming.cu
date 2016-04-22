@@ -139,6 +139,7 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
     //dim3 blocks( (count_shards / threads.x)/2, 2 );
 
     Hamming::bridge<Caller>(n, blocks, threads, dcounts[dev], offset, end);
+
     CHECK_LAST("Kernel failed.");
 //  }
 //  CHECK_ERROR( cudaSetDevice(0) );  
@@ -166,7 +167,7 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
 
   
   // results
-  uint128_t counts[40] = {0};
+  uint128_t counts[64] = {0};
   counts[0] = 1ull<<n;
   counts[1] = with_1bit ? uint128_t(1ull<<n)*(bitcount_message) : 0;
   counts[2] = 0;
@@ -176,9 +177,9 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
     counts[i] = hcounts[0][i] + hcounts[0][i-1];
     counts[i-1] = 0;
   }
-  for(uint_t i=3; i<count_counts; ++i)
-    cout << counts[i] << ",";
-  cout << endl;
+  //for(uint_t i=3; i<count_counts; ++i)
+  //  cout << counts[i] << ",";
+  //cout << endl;
   if(with_1bit)
   {  
     // 1-bit sphere  
@@ -192,7 +193,7 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
   }
 
   for(uint_t i=3; i<count_counts; ++i)
-    counts[i] <<= static_cast<uint128_t>(n);
+    counts[i] <<= n;
 
 
   results_cpu.stop(i_totaltime);

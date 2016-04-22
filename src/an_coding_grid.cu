@@ -16,7 +16,7 @@
 
 template<uintll_t ShardSize,uint_t CountCounts>
 __global__
-void dancoding_grid_1d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations)
+void dancoding_grid_1d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, double stepsize)
 {
   uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
   if(shardXid>=end)
@@ -31,14 +31,40 @@ void dancoding_grid_1d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset
 
   for(;w<wend;w+=A)
   {
-    it = 0;
-    while(it<iterations)
+    for(it=0; it<iterations; ++it)
     {
-      v = (1ull<<n)*it/iterations; // @todo check for overflow
+      v = it*stepsize;
       v *= A;
       ++counts_local[ __popcll( w^v ) ];
-      ++it;
     }
+  }
+  for(int c=0; c<CountCounts; ++c)
+    atomicAdd(counts+c, counts_local[c]);
+}
+
+template<uintll_t ShardSize,uint_t CountCounts>
+__global__
+void dancoding_grid_2d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, double stepsize)
+{
+  uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
+  if(shardXid>=end)
+    return;
+
+  uintll_t counts_local[CountCounts] = { 0 };
+  uintll_t s = stepsize;
+  uintll_t w = A * shardXid * ShardSize * s;
+  uintll_t w_end = A * (shardXid+1) * ShardSize * s;
+  uintll_t v;
+  uintll_t it = 0;
+
+  for( ; w<w_end; w += A*s)
+  {
+    for(it=0; it<iterations; ++it)
+    {
+      v = it*stepsize;
+      v *= A;
+      ++counts_local[ __popcll( w^v ) ];
+    }    
   }
   for(int c=0; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
@@ -48,10 +74,19 @@ void dancoding_grid_1d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset
  * Caller for kernel 
  */
 template<uintll_t N>
-struct Caller
+struct Caller1D
 {
-  void operator()(dim3 blocks, dim3 threads, uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations){
-    dancoding_grid_1d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value ><<< blocks, threads >>>(n, A, counts, offset, end, iterations);
+  template<typename T>
+  void operator()(dim3 blocks, dim3 threads, uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, T stepsize){
+    dancoding_grid_1d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value ><<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
+  }
+};
+template<uintll_t N>
+struct Caller2D
+{
+  template<typename T>
+  void operator()(dim3 blocks, dim3 threads, uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, T stepsize){
+    dancoding_grid_2d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value ><<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
   }
 };
 
@@ -66,7 +101,6 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
   int i_totaltime = results_cpu.add("Total Runtime", "s");
   results_cpu.setFactorAll(0.001);
   results_gpu.setFactorAll(0.001);
-
 
   CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
   const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
@@ -88,10 +122,11 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
   uint_t n_up = n<=8 ? 8 : n<=16 ? 16 : n<=32 ? 32 : n<=40 ? 40 : 48;
   const uintll_t count_messages = (1ull << n);
   const uintll_t size_shards = ANCoding::getShardsSize(n_up); 
-  const uintll_t count_shards = count_messages / size_shards;
+  iterations = iterations>count_messages?count_messages:iterations;
+
+  const uintll_t count_shards = (gdim==2 ? iterations : count_messages) / size_shards;
   const uintll_t bitcount_A = ceil(log((double)A)/log(2.0));
   const uint_t count_counts = n + bitcount_A + 1;
-  iterations = iterations>count_messages?count_messages:iterations;
 
   uintll_t** dcounts;
   uintll_t** hcounts;
@@ -132,7 +167,10 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
     if(dev==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n_up, blocks, threads, n, A, dcounts[dev], offset, end, iterations);
+    if(gdim==1)
+      ANCoding::bridge<Caller1D>(n_up, blocks, threads, n, A, dcounts[dev], offset, end, iterations, 1.0L*count_messages/iterations);
+    else
+      ANCoding::bridge<Caller2D>(n_up, blocks, threads, n, A, dcounts[dev], offset, end, iterations, 1.0L*count_messages/iterations);
 
     CHECK_LAST("Kernel failed.");
 

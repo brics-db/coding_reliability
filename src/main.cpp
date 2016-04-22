@@ -194,16 +194,15 @@ int main(int argc, char** argv)
   }else if(g_flags.h_coding==1){ /* Ext Hamming Code */
     if(g_flags.use_cpu)
       run_hamming_cpu(g_flags.n,g_flags.with_1bit,g_flags.file_output);
+    else if(g_flags.with_grid)
+    {      
+      run_hamming_grid(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
+    }else if(g_flags.with_mc)
+      run_hamming_mc(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);    
     else
       run_hamming(g_flags.n,g_flags.with_1bit,g_flags.file_output, g_flags.nr_dev);
   }else if(g_flags.h_coding==2){
-    if(g_flags.with_mc){
-      if(g_flags.with_grid)
-        run_hamming_grid(g_flags.with_grid,g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
-      else
-        run_hamming_mc(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
-    }else
-      run_hamming_cpu_native_short(g_flags.n,g_flags.with_1bit,g_flags.file_output);
+    run_hamming_cpu_native_short(g_flags.n,g_flags.with_1bit,g_flags.file_output);
   }else if(g_flags.h_coding==3)
     run_hamming_cpu_native_short_ordering(g_flags.n,g_flags.with_1bit,g_flags.file_output);
   else if(g_flags.h_coding==4)

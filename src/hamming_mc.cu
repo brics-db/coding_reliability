@@ -1,6 +1,7 @@
 
 #include "globals.h"
 #include "algorithms.h"
+#include "hamming.h"
 #include "rand_gen.cuh"
 
 #include <helper.h>
@@ -34,10 +35,9 @@ __device__ inline uintll_t computeHamming(const uintll_t &value) {
   return (value << 6) | hamming;
 }
 
-
 template<uintll_t N, uintll_t ShardSize,uint_t CountCounts, typename RandGenType>
 __global__
-void dhamming_mc(uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state, uintll_t iterations)
+void dhamming_mc(uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state)
 {
   uint_t tid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x);
   uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
@@ -46,28 +46,30 @@ void dhamming_mc(uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *s
 
   uintll_t counts_local[CountCounts] = { 0 };
 
-  uintll_t w = shardXid * ShardSize;
-  uintll_t wend = (shardXid+1) * ShardSize;
-  uintll_t v;
-  uintll_t x,y;
-  uintll_t it = 0;
+  uintll_t x;
   RandGenType local_state = state[tid];
-  for(;w<wend;++w)
+  for(uintll_t k=0; k<ShardSize; ++k)
   {
-    it = 0;
-    x = computeHamming<N>(w);
-    while(it<iterations)
-    {
-      v = static_cast<uintll_t>( static_cast<double>(1ull<<N) * curand_uniform_double(&local_state));
-      y = computeHamming<N>(v);
-      ++counts_local[ __popcll( x^y ) ];
-      ++it;
-    }
+    x = static_cast<uintll_t>( static_cast<double>(1ull<<N) * (1.0-curand_uniform_double(&local_state)));
+    ++counts_local[ __popcll( computeHamming<N>( x ) ) ];
   }
+  
   for(int c=0; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
   state[tid] = local_state;
 }
+
+/**
+ * Caller for kernel 
+ */
+template<uintll_t N>
+struct Caller
+{
+  template<typename RandGenType>
+  void operator()(dim3 blocks, dim3 threads, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state){
+    dhamming_mc<N, Hamming::traits::Shards<N>::value, Hamming::traits::CountCounts<N>::value ><<< blocks, threads >>>(counts, offset, end, state);
+  }
+};
 
 double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_output, int nr_dev_max)
 {
@@ -97,10 +99,11 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
   }
 
   results_cpu.start(i_totaltime);
-
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = n==8 ? 1 : n==16 ? 16 : n==24 ? 128 : 512; // also used in template kernel launch
-  const uintll_t count_shards = count_messages / size_shards;
+  const uintll_t size_shards = Hamming::getShardsSize(n);
+  iterations = iterations>count_messages?count_messages:iterations;
+
+  const uintll_t count_shards = iterations / size_shards;
   const uint_t h = ( n==8 ? 5 : (n<32?6:7) );
   const uintll_t bitcount_message = n + h;
   const uint_t count_counts = bitcount_message + 1;
@@ -150,27 +153,9 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
     //dim3 blocks( (count_shards / threads.x)/2, 2 );
     if(dev==0)
       results_gpu.start(i_runtime);
-    switch(n)
-    {
-    case 8:
-      dhamming_mc<8,1,14><<< blocks, threads >>>(dcounts[dev], offset, end, gen.devStates, iterations);
-      break;
-    case 16:
-      dhamming_mc<16,16,23><<< blocks, threads >>>(dcounts[dev], offset, end, gen.devStates, iterations);
-      break;
-    case 24:
-      dhamming_mc<24,128,31><<< blocks, threads >>>(dcounts[dev], offset, end, gen.devStates, iterations);
-      break;
-    case 32:
-      dhamming_mc<32,512,40><<< blocks, threads >>>(dcounts[dev], offset, end, gen.devStates, iterations);
-      break;
-    case 40:
-      dhamming_mc<40,512,48><<< blocks, threads >>>(dcounts[dev], offset, end, gen.devStates, iterations);
-      break;
-    case 48:
-      dhamming_mc<48,512,56><<< blocks, threads >>>(dcounts[dev], offset, end, gen.devStates, iterations);
-      break;
-    }
+
+    Hamming::bridge<Caller>(n, blocks, threads, dcounts[dev], offset, end, gen.devStates);
+
     CHECK_LAST("Kernel failed.");
 
     if(dev==0) results_gpu.stop(i_runtime);
@@ -198,10 +183,10 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
 
   // results
   uint128_t counts[64] = {0};
-  counts[0] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*(hcounts[0][0])/iterations));
+  counts[0] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,2*n)*(hcounts[0][0])/iterations));
   for(uint_t i=2; i<count_counts; i+=2)
   {
-    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*(hcounts[0][i]+hcounts[0][i-1])/iterations));
+    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,2*n)*(hcounts[0][i]+hcounts[0][i-1])/iterations));
   }
   if(with_1bit)
   {  

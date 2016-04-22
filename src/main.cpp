@@ -17,7 +17,7 @@ struct Flags {
   int h_coding; // hamming coded words
   int with_1bit;
   int with_mc; // with monte carlo
-  int with_mc_v2; // with monte carlo
+  int with_grid; // with monte carlo
   int mc_iterations; // number of monte carlo iterations
   uintll_t n; // nr of bits as input size
   int use_cpu;
@@ -33,6 +33,7 @@ void print_help(){
 	 "\t-e NUM\t Extended Hamming-coding algorithm (1=optimized, 2=naive, 3=naive+ordering, 4=as [2]+more optimizations)\n"
          "\t-b    \t ... with 1-bit spheres\n"
 	 "\t-a NUM\t AN-coding algorithm with A=<NUM>\n"
+         "\t-g NUM\t 1=1D-Grid 2=2D-Grid approximation with -m NUM points per dim. (Better than MonteCarlo)\n"
          "\t-s DEC\t ... AN-coding search optimal number of monte carlo iterations for given error bound <1.0.\n"
          "\t      \t -m or -M gives start value of number of iterations.\n"
          "\t-S    \t ... search super A with same code word width as hamming\n"
@@ -80,14 +81,11 @@ void parse_cmdline(int argc, char** argv)
     }else if(strcmp(argv[i],"-m")==0){
       g_flags.with_mc = 1;
       g_flags.mc_iterations=atoi(argv[i+1]);
-      assert(g_flags.mc_iterations>0);
-    }/*
-    else if(strcmp(argv[i],"-M")==0){
-      g_flags.an_coding = 1;
-      g_flags.with_mc_v2 = 1;
-      g_flags.mc_iterations=atoi(argv[i+1]);
-      assert(g_flags.mc_iterations>0);
-    }*/
+      assert(g_flags.mc_iterations>0);    
+    }else if(strcmp(argv[i],"-g")==0){
+      g_flags.with_grid = atoi(argv[i+1]);
+      assert(g_flags.with_grid<3 && g_flags.with_grid>0);         
+    }
     if(strcmp(argv[i],"-f")==0)
       g_flags.file_output = 1;
     if(strcmp(argv[i],"-b")==0)
@@ -184,11 +182,12 @@ int main(int argc, char** argv)
       ancoding_mc_search();
     else if(g_flags.mc_search_super_A)
       ancoding_mc_search_super_A();
-    else if(g_flags.with_mc)
-      run_ancoding_mc(g_flags.n, g_flags.mc_iterations,g_flags.A,1,nullptr,nullptr,nullptr,g_flags.file_output, g_flags.nr_dev);
-//    else if(g_flags.with_mc_v2)
-//      run_ancoding_mc_v2(g_flags.n, g_flags.mc_iterations,1);
-    else if(g_flags.use_cpu)
+    else if(g_flags.with_mc){
+      if(g_flags.with_grid)
+        run_ancoding_grid(g_flags.with_grid, g_flags.n, g_flags.mc_iterations, g_flags.A,1,nullptr,nullptr,nullptr,g_flags.file_output, g_flags.nr_dev);
+      else
+        run_ancoding_mc(g_flags.n, g_flags.mc_iterations,g_flags.A,1,nullptr,nullptr,nullptr,g_flags.file_output, g_flags.nr_dev);
+    }else if(g_flags.use_cpu)
       run_ancoding_cpu(g_flags.n, g_flags.A, 1, nullptr, nullptr,g_flags.file_output);
     else
       run_ancoding(g_flags.n, g_flags.A, 1, nullptr, nullptr,g_flags.file_output, g_flags.nr_dev);
@@ -199,7 +198,10 @@ int main(int argc, char** argv)
       run_hamming(g_flags.n,g_flags.with_1bit,g_flags.file_output, g_flags.nr_dev);
   }else if(g_flags.h_coding==2){
     if(g_flags.with_mc){
-      run_hamming_mc(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
+      if(g_flags.with_grid)
+        run_hamming_grid(g_flags.with_grid,g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
+      else
+        run_hamming_mc(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
     }else
       run_hamming_cpu_native_short(g_flags.n,g_flags.with_1bit,g_flags.file_output);
   }else if(g_flags.h_coding==3)

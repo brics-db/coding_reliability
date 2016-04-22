@@ -16,6 +16,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+
 template<uintll_t ShardSize,uint_t CountCounts, typename RandGenType>
 __global__
 void dancoding_mc(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state, uintll_t iterations)
@@ -88,6 +89,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
 
   dcounts = new uintll_t*[nr_dev];
   hcounts = new uintll_t*[nr_dev];
+  iterations = iterations>count_messages?count_messages:iterations;
 
 #pragma omp parallel for num_threads(nr_dev) schedule(static,1)
   for(int dev=0; dev<nr_dev; ++dev)
@@ -159,13 +161,12 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
 
   results_cpu.stop(i_totaltime);
 
-
   // results
   uint128_t counts[64] = {0};
 //  counts[0] = 1ull<<n;
   for(uint_t i=0; i<count_counts; ++i)
   {
-    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)*hcounts[0][i]/iterations));
+    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)/iterations*hcounts[0][i]));
     //<<1;//only <<1 if sorted
   }
 

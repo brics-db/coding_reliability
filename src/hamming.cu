@@ -1,5 +1,7 @@
 #include "globals.h"
 #include "algorithms.h"
+#include "hamming.h"
+
 #include <helper.h>
 
 #include <stdio.h>
@@ -10,9 +12,10 @@
 #include <iostream>
 #include <ostream>
 #include <vector>
+
 using namespace std;
 
-template<int N>
+template<uintll_t N>
 __device__ inline uintll_t computeHamming(const uintll_t &value) {
   uintll_t hamming = 0;
   hamming |= (__popcll(value & 0x56AAAD5B) & 0x1);
@@ -30,7 +33,7 @@ __device__ inline uintll_t computeHamming(const uintll_t &value) {
   return (value << 6) | hamming;
 }
 
-template<int N, uintll_t ShardSize,uint_t CountCounts>
+template<uintll_t N, uintll_t ShardSize,int CountCounts>
 __global__
 void dhamming(uintll_t* counts, uintll_t offset, uintll_t end)
 {
@@ -49,6 +52,17 @@ void dhamming(uintll_t* counts, uintll_t offset, uintll_t end)
   for(int c=3; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
+
+/**
+ * Caller for kernel 
+ */
+template<uintll_t N>
+struct Caller
+{
+  void operator()(dim3 blocks, dim3 threads, uintll_t* counts, uintll_t offset, uintll_t end){
+    dhamming<N, Hamming::traits::Shards<N>::value, Hamming::traits::CountCounts<N>::value ><<< blocks, threads >>>(counts, offset, end);
+  }
+};
 
 void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
 {
@@ -79,7 +93,7 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = n==8?1:256;
+  const uintll_t size_shards = Hamming::getShardsSize(n);
   const uintll_t count_shards = count_messages / size_shards;
   const uint_t h = ( n==8 ? 5 : (n<32?6:7) );
   const uintll_t bitcount_message = n + h;
@@ -104,65 +118,35 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
     CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
     CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
 
-//  }
-//@todo: check cudaMalloc/sysmalloc: bug if you swap these two blocks
-//  for(int dev=0; dev<nr_dev; ++dev){
     hcounts[dev] = new uintll_t[count_counts];
     memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
-//  }
   
-//  CHECK_ERROR( cudaSetDevice(0) );
+    // offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
+    // end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
+    offset = count_shards / nr_dev * (dev);
+    end = count_shards / nr_dev * (dev+1);
+    //printf("%d %llu\n",omp_get_thread_num(), end-offset);
 
-//  for(int dev=0; dev<nr_dev; ++dev)
-//  {
-//    CHECK_ERROR( cudaSetDevice(dev) );
-    //for (uint_t batch = 0; batch < CNT_BATCHES; ++batch)
-//    {
-      // offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
-      // end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
-      offset = count_shards / nr_dev * (dev);
-      end = count_shards / nr_dev * (dev+1);
-      //printf("%d %llu\n",omp_get_thread_num(), end-offset);
+    xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
+    blocks.x= xblocks; blocks.y = xblocks;
+    if(dev==0)
+    {
+      results_gpu.start(i_runtime);
+      printf("Using %d threads, blocks %u, %u-%u.\n", omp_get_num_threads(),xblocks, offset, end);
+    }
+    // 3) Remainder of the slice
+    //printf("Dev %d: Blocks: %d %d, offset %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end);
+    //dim3 blocks( (count_shards / threads.x)/2, 2 );
 
-      xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
-      blocks.x= xblocks; blocks.y = xblocks;
-      if(dev==0)
-      {
-        results_gpu.start(i_runtime);
-        printf("Using %d threads, blocks %u, %u-%u.\n", omp_get_num_threads(),xblocks, offset, end);
-      }
-      // 3) Remainder of the slice
-      //printf("Dev %d: Blocks: %d %d, offset %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end);
-      //dim3 blocks( (count_shards / threads.x)/2, 2 );
-      switch(n)
-      {
-      case 8:
-        dhamming<8,1,12><<< blocks, threads >>>(dcounts[dev], offset, end);
-        break;
-      case 16:
-        dhamming<16,256,21><<< blocks, threads >>>(dcounts[dev], offset, end);
-        break;
-      case 24:
-        dhamming<24,256,29><<< blocks, threads >>>(dcounts[dev], offset, end);
-        break;
-      case 32:
-        dhamming<32,256,38><<< blocks, threads >>>(dcounts[dev], offset, end);
-        break;
-      case 40:
-        dhamming<40,256,46><<< blocks, threads >>>(dcounts[dev], offset, end);
-        break;
-      case 48:
-        dhamming<48,256,54><<< blocks, threads >>>(dcounts[dev], offset, end);
-        break;
-      }
-      CHECK_LAST("Kernel failed.");
+    Hamming::bridge<Caller>(n, blocks, threads, dcounts[dev], offset, end);
+    CHECK_LAST("Kernel failed.");
 //  }
 //  CHECK_ERROR( cudaSetDevice(0) );  
     if(dev==0)
     {
       results_gpu.stop(i_runtime);
     }
-  }
+  } // for
 
   CHECK_ERROR(
       cudaMemcpy(hcounts[0], dcounts[0], count_counts*sizeof(uintll_t), cudaMemcpyDefault)

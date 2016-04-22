@@ -51,4 +51,16 @@ T binomialCoeff(T n, T k)
   return res;
 }
 
+
+inline int getShardSize(uint_t n)
+{
+  if(n<16)
+    return 1;
+  if(n<24)
+    return 128;
+  if(n<32)
+    return 256;
+  return 512;
+}
+
 #endif /* GLOBALS_H_ */

@@ -103,6 +103,8 @@ double get_abs_error_hamming(uint_t n, uint128_t* tgt, int offset, int w1bit, do
 double get_rel_error_AN(uintll_t A, uint_t n, uint128_t* tgt, int offset, double* errors)
 {
   const uint128_t* sol = NULL;
+  if(A!=641 && A!=61) 
+    return -1.0;
   if(n==24)
     sol = A==641 ? solution_an24_A641 : solution_an24_A61;
   else if(n==16)
@@ -137,6 +139,8 @@ double get_rel_error_AN(uintll_t A, uint_t n, uint128_t* tgt, int offset, double
 double get_abs_error_AN(uintll_t A, uint_t n, uint128_t* tgt, int offset, double* errors)
 {
   const uint128_t* sol = NULL;
+  if(A!=641 && A!=61) 
+    return -1.0;
   if(n==24)
     sol = A==641 ? solution_an24_A641 : solution_an24_A61;
   else if(n==16)

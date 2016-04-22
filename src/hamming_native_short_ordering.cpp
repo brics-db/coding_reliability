@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string.h>
 using namespace std;
+using namespace Hamming;
 
 typedef uintll_t (*computeHamming_ft)(const uintll_t &);
 

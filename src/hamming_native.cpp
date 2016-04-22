@@ -7,7 +7,7 @@
 #include <math.h>
 #include <iostream>
 using namespace std;
-
+using namespace Hamming;
 typedef uintll_t (*computeHamming_ft)(const uintll_t &);
 
 template<typename T, 

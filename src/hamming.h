@@ -2,6 +2,8 @@
 #define HAMMING_H_
 
 #include "globals.h"
+#include <stdexcept>
+namespace Hamming {
 
 inline uintll_t computeHamming08(const uintll_t &value) {
   uintll_t hamming = 0;
@@ -52,4 +54,52 @@ inline uintll_t computeDistance(const T &value1, const T &value2) {
   return static_cast<uintll_t>(bitcount(value1 ^ value2));
 }
 
+namespace traits {
+  
+  // trait for Shards sizes
+  template<uintll_t N>
+  struct Shards: std::integral_constant<uintll_t,1>{};
+  template<> struct Shards<8>: std::integral_constant<uintll_t,1>{};
+  template<> struct Shards<16>: std::integral_constant<uintll_t,16>{};
+  template<> struct Shards<24>: std::integral_constant<uintll_t,128>{};
+  template<> struct Shards<32>: std::integral_constant<uintll_t,256>{};
+  template<> struct Shards<40>: std::integral_constant<uintll_t,512>{};
+  template<> struct Shards<48>: std::integral_constant<uintll_t,1024>{};
+  // trait for size of array counts[]
+  template<uintll_t N>
+  struct CountCounts: std::integral_constant<int,14>{};
+  template<> struct CountCounts<8>: std::integral_constant<int,14>{};
+  template<> struct CountCounts<16>: std::integral_constant<int,23>{};
+  template<> struct CountCounts<24>: std::integral_constant<int,31>{};
+  template<> struct CountCounts<32>: std::integral_constant<int,40>{};
+  template<> struct CountCounts<40>: std::integral_constant<int,48>{};
+  template<> struct CountCounts<48>: std::integral_constant<int,56>{};
+
+} // traits
+
+template<template<uintll_t> class TFunctor, typename... Types>
+inline void bridge(uint_t n, Types... args)
+{
+  switch(n){
+  case 8:  return TFunctor<8>()(args...);
+  case 16: return TFunctor<16>()(args...); 
+  case 24: return TFunctor<24>()(args...); 
+  case 32: return TFunctor<32>()(args...); 
+  case 40: return TFunctor<40>()(args...); 
+  case 48: return TFunctor<48>()(args...); 
+  }
+  throw std::runtime_error("Unsupported n.");
+}
+template<uintll_t N>
+struct GetShardsSize
+{
+  void operator()(uintll_t* result){ *result = traits::Shards<N>::value; }
+};
+inline uintll_t getShardsSize(uint_t n)
+{
+  uintll_t result = 0;
+  bridge< GetShardsSize >(n, &result);
+  return result;
+}
+} // Hamming
 #endif

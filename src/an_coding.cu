@@ -1,8 +1,9 @@
 
 #include "globals.h"
 #include "algorithms.h"
+#include "an_coding.h"
 #include <helper.h>
-
+#include <assert.h>
 #include <stdio.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
@@ -35,8 +36,22 @@ void dancoding(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll
     atomicAdd(counts+c, counts_local[c]);
 }
 
+/**
+ * Caller for kernel 
+ */
+template<uintll_t N>
+struct Caller
+{
+  void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end){
+    dancoding<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value ><<< blocks, threads >>>(n, A, counts, offset, end);
+  }
+};
+
 void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
 {
+  uint_t h = ceil(log(A)/log(2.0));
+  assert((n+h)<ANCoding::getCountCounts(n));
+
   int tmp_nr_dev;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -65,10 +80,9 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = n<=8 ? 1 : n<=16 ? 16 : n<=24 ? 128 : 512;
+  const uintll_t size_shards = ANCoding::getShardsSize(n);
   const uintll_t count_shards = count_messages / size_shards;
-  const uintll_t bitcount_A = ceil(log((double)A)/log(2.0));;
-  const uint_t count_counts = n + bitcount_A + 1;
+  const uint_t count_counts = n + h + 1;
 //  const uint_t A=63877;//233;//641;
 
   uintll_t** dcounts;
@@ -107,14 +121,8 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
       if(verbose)
         printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
       //dim3 blocks( (count_shards / threads.x)/2, 2 );
-      if(n<=8)
-        dancoding<1,32><<< blocks, threads >>>(n,A,dcounts[dev], offset, end);
-      else if(n<=16)
-        dancoding<16,64><<< blocks, threads >>>(n,A,dcounts[dev], offset, end);
-      else if(n<=24)
-        dancoding<128,64><<< blocks, threads >>>(n,A,dcounts[dev], offset, end);
-      else
-        dancoding<512,64><<< blocks, threads >>>(n,A,dcounts[dev], offset, end);
+
+      ANCoding::bridge<Caller>(n, blocks, threads,A,dcounts[dev], offset, end);
           
       CHECK_LAST("Kernel failed.");
     }

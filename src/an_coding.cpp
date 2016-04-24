@@ -87,15 +87,6 @@ void countANCodingUndetectableErrors(uintll_t n, uintll_t A, uint128_t* counts, 
   } // parallel
 }
 
-uintll_t msb(uintll_t v)
-{
-  uintll_t r = 0;
-  while(v>>=1)
-    ++r;
-  return r;
-}
-
-
 void run_ancoding_cpu(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t* mincb, int file_output)
 {
   Statistics stats;

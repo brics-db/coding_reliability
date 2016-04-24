@@ -15,24 +15,40 @@ using namespace std;
 
 template<uintll_t ShardSize,uint_t CountCounts>
 __global__
-void dancoding(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end)
+void dancoding(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t Aend)
 {
   uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
   if(shardXid>=end)
     return;
-
   uintll_t counts_local[CountCounts] = { 0 };
-
   uintll_t w = A * shardXid * ShardSize;
-  uintll_t wend = A * (shardXid+1) * ShardSize;
   uintll_t v;
-  const uintll_t vend = (A<<n);
-  for(;w<wend;w+=A)
+  for(uint_t k=0;k<ShardSize;++k)
   {
-    for(v=w+A; v<vend; v+=A)
+    for(v=w+A; v<Aend; v+=A)
       ++counts_local[ __popcll( w^v ) ];
+    w+=A;
   }
-  for(int c=1; c<CountCounts; ++c)
+  for(uint_t c=1; c<CountCounts; ++c)
+    atomicAdd(counts+c, counts_local[c]);
+}
+template<uintll_t ShardSize,uint_t CountCounts>
+__global__
+void dancoding32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end, uint_t Aend)
+{
+  uint_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
+  if(shardXid>=end)
+    return;
+  uint_t counts_local[CountCounts] = { 0 };
+  uint_t w = A * shardXid * ShardSize;
+  uint_t v;
+  for(uint_t k=0;k<ShardSize;++k)
+  {
+    for(v=w+A; v<Aend; v+=A)
+      ++counts_local[ __popc( w^v ) ];
+    w+=A;
+  }
+  for(uint_t c=1; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
 
@@ -43,7 +59,13 @@ template<uintll_t N>
 struct Caller
 {
   void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end){
-    dancoding<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value ><<< blocks, threads >>>(n, A, counts, offset, end);
+    uintll_t Aend = A<<n;
+    if(Aend<(1ull<<32))
+      dancoding32<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+        <<< blocks, threads >>>(n, A, counts, offset, end, Aend);
+    else   
+      dancoding<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+        <<< blocks, threads >>>(n, A, counts, offset, end, Aend);
   }
 };
 
@@ -83,7 +105,6 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   const uintll_t size_shards = ANCoding::getShardsSize(n);
   const uintll_t count_shards = count_messages / size_shards;
   const uint_t count_counts = n + h + 1;
-//  const uint_t A=63877;//233;//641;
 
   uintll_t** dcounts;
   uintll_t** hcounts;
@@ -105,7 +126,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
     hcounts[dev] = new uintll_t[count_counts];
     memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
 
-    if(verbose)
+    if(verbose>1)
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
     if(dev==0)
       results_gpu.start(i_runtime);
@@ -118,7 +139,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
       xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
       blocks.x= xblocks; blocks.y = xblocks;
       // 3) Remainder of the slice
-      if(verbose)
+      if(verbose>1)
         printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
       //dim3 blocks( (count_shards / threads.x)/2, 2 );
 

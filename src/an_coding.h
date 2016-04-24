@@ -5,7 +5,15 @@ namespace ANCoding {
 
 namespace traits {
   // trait for Shards sizes
-  using Hamming::traits::Shards;
+  template<uintll_t N>
+  struct Shards: std::integral_constant<uintll_t,1>{};
+  template<> struct Shards<8>: std::integral_constant<uintll_t,1>{};
+  template<> struct Shards<16>: std::integral_constant<uintll_t,8>{};
+  template<> struct Shards<24>: std::integral_constant<uintll_t,128>{};
+  template<> struct Shards<32>: std::integral_constant<uintll_t,256>{};
+  template<> struct Shards<40>: std::integral_constant<uintll_t,512>{};
+  template<> struct Shards<48>: std::integral_constant<uintll_t,1024>{};
+
 
   // trait for size of array counts[]
   template<uintll_t N>

@@ -16,7 +16,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-
+/** @todo add optimized kernel for 32bit cases */
 template<uintll_t ShardSize,uint_t CountCounts, typename RandGenType>
 __global__
 void dancoding_mc(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state, uintll_t iterations)

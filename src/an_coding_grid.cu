@@ -39,6 +39,32 @@ void dancoding_grid_1d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset
   for(int c=0; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
+template<uintll_t ShardSize,uint_t CountCounts>
+__global__
+void dancoding_grid_1d_32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end, uint_t iterations, double stepsize)
+{
+  uint_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
+  if(shardXid>=end)
+    return;
+
+  uint_t counts_local[CountCounts] = { 0 };
+
+  uint_t w = A * shardXid * ShardSize;
+  uint_t v;
+  uint_t it = 0;
+  for(uint_t k=0;k<ShardSize;++k)
+  {
+    for(it=0; it<iterations; ++it)
+    {
+      v = it*stepsize;
+      v *= A;
+      ++counts_local[ __popc( w^v ) ];
+    }
+    w+=A;
+  }
+  for(int c=0; c<CountCounts; ++c)
+    atomicAdd(counts+c, counts_local[c]);
+}
 
 template<uintll_t ShardSize,uint_t CountCounts>
 __global__
@@ -76,10 +102,15 @@ struct Caller
 {
   template<typename T>
   void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, T stepsize){
-    if(gdim==1)
-      dancoding_grid_1d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-        <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
-    else
+    if(gdim==1){
+      uintll_t Aend = A<<n;
+      if(Aend<(1ull<<32))
+        dancoding_grid_1d_32<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+          <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
+      else
+        dancoding_grid_1d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+          <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
+    }else
       dancoding_grid_2d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
         <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
   }

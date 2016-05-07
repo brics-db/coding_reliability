@@ -68,14 +68,14 @@ void dancoding_grid_1d_32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, u
 
 template<uintll_t ShardSize,uint_t CountCounts>
 __global__
-void dancoding_grid_2d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, double stepsize)
+void dancoding_grid_2d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, double stepsize, double stepsize2)
 {
   uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
   if(shardXid>=end)
     return;
 
   uintll_t counts_local[CountCounts] = { 0 };
-  uintll_t s = stepsize;
+  uintll_t s = stepsize2;
   uintll_t w = A * shardXid * ShardSize * s;
   uintll_t w_end = A * (shardXid+1) * ShardSize * s;
   uintll_t v;
@@ -101,7 +101,7 @@ template<uintll_t N>
 struct Caller
 {
   template<typename T>
-  void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, T stepsize){
+  void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, T stepsize, T stepsize2){
     if(gdim==1){
       uintll_t Aend = A<<n;
       if(Aend<(1ull<<32))
@@ -112,11 +112,11 @@ struct Caller
           <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
     }else
       dancoding_grid_2d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-        <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
+        <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize, stepsize2);
   }
 };
 
-double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, int verbose, double* times, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
+double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t iterations2, uintll_t A, int verbose, double* times, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
 {
   assert(A<(1ull<<n));
   int tmp_nr_dev;
@@ -133,7 +133,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
   cudaDeviceProp prop;
   CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
   if(verbose){
-    printf("Start AN-Coding Algorithm - %dD Grid with %zu points\n", gdim, iterations);
+    printf("Start AN-Coding Algorithm - %dD Grid with %llu x %llu points\n", gdim, iterations, gdim==2?iterations2:1);
     printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
   }
   // skip init time
@@ -149,7 +149,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
   const uintll_t size_shards = ANCoding::getShardsSize(n); 
   iterations = iterations>count_messages?count_messages:iterations;
 
-  const uintll_t count_shards = (gdim==2 ? iterations : count_messages) / size_shards;
+  const uintll_t count_shards = (gdim==2 ? iterations2 : count_messages) / size_shards;
   const uintll_t bitcount_A = ceil(log((double)A)/log(2.0));
   const uint_t count_counts = n + bitcount_A + 1;
 
@@ -192,7 +192,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
     if(dev==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n, blocks, threads, gdim, A, dcounts[dev], offset, end, iterations, 1.0L*count_messages/iterations);
+    ANCoding::bridge<Caller>(n, blocks, threads, gdim, A, dcounts[dev], offset, end, iterations, 1.0L*count_messages/iterations, 1.0L*count_messages/iterations2);
 
     CHECK_LAST("Kernel failed.");
 
@@ -220,9 +220,10 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
   // results
   uint128_t counts[64] = {0};
 //  counts[0] = 1ull<<n;
+  long double factor = gdim==1 ? pow(2.0L,n)/iterations : pow(4.0L,n)/(iterations*iterations2);
   for(uint_t i=0; i<count_counts; ++i)
   {
-    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)/iterations*hcounts[0][i]));
+    counts[i] = static_cast<uint128_t>(factor*hcounts[0][i]);
     //<<1;//only <<1 if sorted
   }
 
@@ -251,7 +252,9 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t A, 
 
   if(verbose)
   {
-    process_result_ancoding_mc(counts,stats,n,A,iterations,file_output?"ancoding_grid1d":nullptr);
+    char fname[256];
+    sprintf(fname, "ancoding_grid%dd_%s", gdim, nr_dev==4 ? "4gpu" : "gpu");
+    process_result_ancoding_mc(counts,stats,n,A,iterations,file_output ? fname : nullptr);
   }
 
   if(times!=NULL)

@@ -1,5 +1,6 @@
 
 #include "globals.h"
+#include "an_coding.h"
 #include "algorithms.h"
 #include "rand_gen.cuh"
 
@@ -16,38 +17,55 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-/** @todo add optimized kernel for 32bit cases */
-template<uintll_t ShardSize,uint_t CountCounts, typename RandGenType>
+__device__ int popc(uintll_t v){ return __popcll(v); }
+__device__ int popc(uint_t v){ return __popc(v); }
+
+template<uintll_t ShardSize,uint_t CountCounts, typename T, typename RandGenType>
 __global__
-void dancoding_mc(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state, uintll_t iterations)
+void dancoding_mc(T n, T A, uintll_t* counts, T offset, T end, RandGenType* state, T iterations, double p2n)
 {
   uint_t tid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x);
-  uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
+  T shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
   if(shardXid>=end)
     return;
 
-  uintll_t counts_local[CountCounts] = { 0 };
+  T counts_local[CountCounts] = { 0 };
 
-  uintll_t w = A * shardXid * ShardSize;
-  uintll_t wend = A * (shardXid+1) * ShardSize;
-  uintll_t v;
-  uintll_t it = 0;
+  T w = A * shardXid * ShardSize;
+  T wend = A * (shardXid+1) * ShardSize;
+  T v;
+  T it;
   RandGenType local_state = state[tid];
   for(;w<wend;w+=A)
   {
-    it = 0;
-    while(it<iterations)
+    for(it=0; it<iterations; ++it)
     {
-      v = static_cast<uintll_t>( static_cast<double>(1ull<<n) * curand_uniform_double(&local_state));
+      v = static_cast<T>( p2n * curand_uniform_double(&local_state));
       v *= A;
-      ++counts_local[ __popcll( w^v ) ];
-      ++it;
+      ++counts_local[ popc( w^v ) ];
     }
   }
   for(int c=0; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
   state[tid] = local_state;
 }
+/**
+ * Caller for kernel 
+ */
+template<uintll_t N>
+struct Caller
+{
+  template<typename RandGenType>
+  void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType* states, uintll_t iterations){
+    double p2n = pow(2.0,n);
+    if((A<<n)<(1ull<<32))
+      dancoding_mc<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+        <<< blocks, threads >>>((uint_t)n, (uint_t)A, counts, (uint_t)offset, (uint_t)end, states, (uint_t)iterations, p2n);
+   else
+      dancoding_mc<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+        <<< blocks, threads >>>(n, A, counts, offset, end, states, iterations, p2n);
+  }
+};
 
 double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose, double* times, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
 {
@@ -79,7 +97,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = n<=8 ? 1 : n<=16 ? 16 : n<=24 ? 128 : 512; // also used in template kernel launch
+  const uintll_t size_shards = ANCoding::getShardsSize(n);
   const uintll_t count_shards = count_messages / size_shards;
   const uintll_t bitcount_A = ceil(log((double)A)/log(2.0));
   const uint_t count_counts = n + bitcount_A + 1;
@@ -129,14 +147,9 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
     //dim3 blocks( (count_shards / threads.x)/2, 2 );
     if(dev==0)
       results_gpu.start(i_runtime);
-    if(n<=8)
-      dancoding_mc<1,32><<< blocks, threads >>>(n, A, dcounts[dev], offset, end, gen.devStates, iterations);
-    else if(n<=16)
-      dancoding_mc<16,64><<< blocks, threads >>>(n, A, dcounts[dev], offset, end, gen.devStates, iterations);
-    else if(n<=24)
-      dancoding_mc<128,64><<< blocks, threads >>>(n, A, dcounts[dev], offset, end, gen.devStates, iterations);
-    else
-      dancoding_mc<512,64><<< blocks, threads >>>(n, A, dcounts[dev], offset, end, gen.devStates, iterations);
+
+    ANCoding::bridge<Caller>(n, blocks, threads, A, dcounts[dev], offset, end, gen.devStates, iterations);
+
     CHECK_LAST("Kernel failed.");
 
     if(dev==0) results_gpu.stop(i_runtime);
@@ -195,7 +208,10 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
 
   if(verbose)
   {
-    process_result_ancoding_mc(counts,stats,n,A,iterations,file_output?"ancoding_mc":nullptr);
+    if(nr_dev==4)
+      process_result_ancoding_mc(counts,stats,n,A,iterations,file_output?"ancoding_mc_4gpu":nullptr);
+    else
+      process_result_ancoding_mc(counts,stats,n,A,iterations,file_output?"ancoding_mc_gpu":nullptr);
   }
 
   if(times!=NULL)

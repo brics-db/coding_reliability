@@ -19,6 +19,7 @@ struct Flags {
   int with_mc; // with monte carlo
   int with_grid; // with monte carlo
   int mc_iterations; // number of monte carlo iterations
+  int mc_iterations_2; // for 2D-grid
   uintll_t n; // nr of bits as input size
   int use_cpu;
   int rand_gen;
@@ -26,7 +27,7 @@ struct Flags {
   int mc_search_super_A;
   int file_output;
   int nr_dev;
-} g_flags = {0,61,0,0,0,0,100,8,0,0,-1.0,0,0,0};
+} g_flags = {0,61,0,0,0,0,100,0,8,0,0,-1.0,0,0,0};
 
 void print_help(){
   printf("\nUSAGE:\n\n\t-h\tprint help\n"
@@ -38,7 +39,7 @@ void print_help(){
          "\t      \t -m or -M gives start value of number of iterations.\n"
          "\t-S    \t ... search super A with same code word width as hamming\n"
          "\t-m NUM\t Monte-Carlo with number of iterations, GPU, for -e 2 and -a\n"
-//         "\t-M NUM\t ... AN-coding with monte carlo v2 - and number of iterations\n"
+         "\t-M NUM\t ... number of iterations in second dimension for 2D grid\n"
 	 "\t-n NUM\t number of bits as input size\n"
          "\t-c    \t use CPU implementation (has effect on -e 1 and -a)\n"
          "\t-t NUM\t test curand generator with number of iterations\n"
@@ -82,6 +83,11 @@ void parse_cmdline(int argc, char** argv)
       g_flags.with_mc = 1;
       g_flags.mc_iterations=atoi(argv[i+1]);
       assert(g_flags.mc_iterations>0);    
+    }else if(strcmp(argv[i],"-M")==0){
+      g_flags.with_mc = 1;
+      g_flags.with_grid = 2;
+      g_flags.mc_iterations_2=atoi(argv[i+1]);
+      assert(g_flags.mc_iterations_2>0);    
     }else if(strcmp(argv[i],"-g")==0){
       g_flags.with_grid = atoi(argv[i+1]);
       assert(g_flags.with_grid<3 && g_flags.with_grid>0);         
@@ -105,6 +111,8 @@ void parse_cmdline(int argc, char** argv)
     g_flags.n=8;
     printf("Wrong input size, so set n to 8.\n");       
   }
+  if(g_flags.with_grid==2 && g_flags.mc_iterations_2==0)
+    g_flags.mc_iterations_2 = g_flags.mc_iterations; 
 }
 
 void ancoding_mc_search_super_A()
@@ -184,9 +192,20 @@ int main(int argc, char** argv)
       ancoding_mc_search_super_A();
     else if(g_flags.with_mc){
       if(g_flags.with_grid)
-        run_ancoding_grid(g_flags.with_grid, g_flags.n, g_flags.mc_iterations, g_flags.A,1,nullptr,nullptr,nullptr,g_flags.file_output, g_flags.nr_dev);
+        run_ancoding_grid(g_flags.with_grid, 
+                          g_flags.n, 
+                          g_flags.mc_iterations, g_flags.mc_iterations_2,
+                          g_flags.A,
+                          1,nullptr,nullptr,nullptr,
+                          g_flags.file_output, 
+                          g_flags.nr_dev);
       else
-        run_ancoding_mc(g_flags.n, g_flags.mc_iterations,g_flags.A,1,nullptr,nullptr,nullptr,g_flags.file_output, g_flags.nr_dev);
+        run_ancoding_mc(g_flags.n, 
+                        g_flags.mc_iterations,
+                        g_flags.A,
+                        1,nullptr,nullptr,nullptr,
+                        g_flags.file_output, 
+                        g_flags.nr_dev);
     }else if(g_flags.use_cpu)
       run_ancoding_cpu(g_flags.n, g_flags.A, 1, nullptr, nullptr,g_flags.file_output);
     else
@@ -196,9 +215,17 @@ int main(int argc, char** argv)
       run_hamming_cpu(g_flags.n,g_flags.with_1bit,g_flags.file_output);
     else if(g_flags.with_grid)
     {      
-      run_hamming_grid(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);
+      run_hamming_grid(g_flags.n,
+                       g_flags.with_1bit,
+                       g_flags.mc_iterations,
+                       g_flags.file_output, 
+                       g_flags.nr_dev);
     }else if(g_flags.with_mc)
-      run_hamming_mc(g_flags.n,g_flags.with_1bit,g_flags.mc_iterations,g_flags.file_output, g_flags.nr_dev);    
+      run_hamming_mc(g_flags.n,
+                     g_flags.with_1bit,
+                     g_flags.mc_iterations,
+                     g_flags.file_output, 
+                     g_flags.nr_dev);    
     else
       run_hamming(g_flags.n,g_flags.with_1bit,g_flags.file_output, g_flags.nr_dev);
   }else if(g_flags.h_coding==2){

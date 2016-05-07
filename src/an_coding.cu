@@ -190,8 +190,12 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
     }
   }
 
-  if(verbose || file_output)
-    process_result_ancoding(counts, stats, n, A, file_output?"ancoding_gpu":nullptr);
+  if(verbose || file_output){
+    if(nr_dev==4)
+      process_result_ancoding(counts, stats, n, A, file_output?"ancoding_4gpu":nullptr);
+    else
+      process_result_ancoding(counts, stats, n, A, file_output?"ancoding_gpu":nullptr);
+  }
 
   CHECK_ERROR( cudaFree(dcounts[0]) );
   delete[] hcounts[0];

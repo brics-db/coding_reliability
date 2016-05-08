@@ -83,7 +83,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
   const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
   cudaDeviceProp prop;
   CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
-  if(verbose){
+  if(verbose>1){
     printf("Start AN-Coding Algorithm - Monte Carlo with %zu iterations\n", iterations);
     printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
   }
@@ -91,6 +91,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
   for(int dev=0; dev<nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
+    CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
     CHECK_ERROR( cudaDeviceSynchronize() );
   }
 
@@ -137,7 +138,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
     blocks.x= xblocks; blocks.y = xblocks;
 
     // 3) Remainder of the slice
-    if(verbose){
+    if(verbose>1){
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
       printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
     }
@@ -206,7 +207,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
     }
   }
 
-  if(verbose)
+  if(verbose || file_output)
   {
     if(nr_dev==4)
       process_result_ancoding_mc(counts,stats,n,A,iterations,file_output?"ancoding_mc_4gpu":nullptr);

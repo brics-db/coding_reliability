@@ -32,6 +32,7 @@ void dancoding(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll
   for(uint_t c=1; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
+
 template<uintll_t ShardSize,uint_t CountCounts>
 __global__
 void dancoding32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end, uint_t Aend)
@@ -44,8 +45,10 @@ void dancoding32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end
   uint_t v;
   for(uint_t k=0;k<ShardSize;++k)
   {
-    for(v=w+A; v<Aend; v+=A)
+    for(v=w+A; v<Aend;v+=A)
+    {
       ++counts_local[ __popc( w^v ) ];
+    }
     w+=A;
   }
   for(uint_t c=1; c<CountCounts; ++c)
@@ -87,7 +90,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
   const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
   cudaDeviceProp prop;
-  if(verbose){
+  if(verbose>1){
     printf("Start AN-Coding Algorithm\n");
     printf("Found %d CUDA devices.\n", nr_dev);
   }
@@ -96,6 +99,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   for(int dev=0; dev<nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
+    CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
     CHECK_ERROR( cudaDeviceSynchronize() );
   }
 
@@ -119,35 +123,31 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
     dim3 blocks;
 
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
     CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
     CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
 
     hcounts[dev] = new uintll_t[count_counts];
     memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
 
-    if(verbose>1)
+    offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
+    end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
+
+    xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
+    blocks.x= xblocks; blocks.y = xblocks;
+    if(verbose>1){
+      CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
+      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
+    }
+
     if(dev==0)
       results_gpu.start(i_runtime);
-
-    end = 0;
-    {
-      offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
-      end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
-
-      xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
-      blocks.x= xblocks; blocks.y = xblocks;
-      // 3) Remainder of the slice
-      if(verbose>1)
-        printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
-      //dim3 blocks( (count_shards / threads.x)/2, 2 );
-
-      ANCoding::bridge<Caller>(n, blocks, threads,A,dcounts[dev], offset, end);
+ 
+    ANCoding::bridge<Caller>(n, blocks, threads,A,dcounts[dev], offset, end);
+    CHECK_LAST("Kernel failed.");
           
-      CHECK_LAST("Kernel failed.");
-    }
-    if(dev==0) results_gpu.stop(i_runtime);
+    if(dev==0) 
+      results_gpu.stop(i_runtime);    
   }
 
   CHECK_ERROR(

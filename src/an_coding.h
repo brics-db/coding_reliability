@@ -19,7 +19,7 @@ namespace traits {
   template<uintll_t N>
   struct CountCounts: std::integral_constant<int,16>{};
   template<> struct CountCounts<8>: std::integral_constant<int,32>{};
-  template<> struct CountCounts<16>: std::integral_constant<int,48>{};
+  template<> struct CountCounts<16>: std::integral_constant<int,32>{};
   template<> struct CountCounts<24>: std::integral_constant<int,64>{};
   template<> struct CountCounts<32>: std::integral_constant<int,64>{};
   template<> struct CountCounts<40>: std::integral_constant<int,64>{};

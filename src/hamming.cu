@@ -73,22 +73,24 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
   int i_totaltime = results_cpu.add("Total Runtime", "s");
   results_cpu.setFactorAll(0.001);
   results_gpu.setFactorAll(0.001);
-
-  printf("Start Hamming Coding Algorithm\n");
+  const uint_t verbose=1;
 
   int tmp_nr_dev;
   CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
   const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
   cudaDeviceProp prop;
   CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
-  printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
+  if(verbose>1){
+    printf("Start Hamming Coding Algorithm\n");
+    printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
+  }
   // skip init time
   for(int dev=0; dev<nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
+    CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
     CHECK_ERROR( cudaDeviceSynchronize() );
   }
-
   
   results_cpu.start(i_totaltime);
 
@@ -131,8 +133,9 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
     blocks.x= xblocks; blocks.y = xblocks;
     if(dev==0)
     {
+      if(verbose>1)
+        printf("Using %d threads, blocks %u, %u-%u.\n", omp_get_num_threads(),xblocks, offset, end);
       results_gpu.start(i_runtime);
-      printf("Using %d threads, blocks %u, %u-%u.\n", omp_get_num_threads(),xblocks, offset, end);
     }
     // 3) Remainder of the slice
     //printf("Dev %d: Blocks: %d %d, offset %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end);
@@ -197,11 +200,13 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
 
 
   results_cpu.stop(i_totaltime);
-
-  if(nr_dev==4)
-    process_result_hamming(counts, stats, n, h, file_output?"hamming_4gpu":nullptr);
-  else
-    process_result_hamming(counts, stats, n, h, file_output?"hamming_gpu":nullptr);
+  if(verbose || file_output)
+  {
+    if(nr_dev==4)
+      process_result_hamming(counts, stats, n, h, file_output?"hamming_4gpu":nullptr);
+    else
+      process_result_hamming(counts, stats, n, h, file_output?"hamming_gpu":nullptr);
+  }
   
   CHECK_ERROR( cudaFree(dcounts[0]) );
   delete[] hcounts[0];

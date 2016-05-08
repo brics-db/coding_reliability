@@ -19,6 +19,7 @@ endif()
 FIND_PACKAGE(CUDA)
 INCLUDE(FindCUDA)
 INCLUDE_DIRECTORIES(${CUDA_INCLUDE_DIRS} ${helper_INCLUDE_DIRS})
+set(CUDA_VERBOSE_BUILD ON)
 
 #LIST(APPEND CUDA_NVCC_FLAGS -gencode arch=compute_30,code=sm_30)
 #LIST(APPEND CUDA_NVCC_FLAGS "-gencode arch=compute_37,code=compute_37 --default-stream per-thread")

@@ -15,8 +15,8 @@
   14,             0,             0,           256
 
 
-0,"Kernel Runtime",0.000270816,s
-1,"Total Runtime",0.0368138,s
+0,"Kernel Runtime",0.000210528,s
+1,"Total Runtime",0.0198927,s
 
 "Total",65536
 

@@ -45,7 +45,7 @@ void dancoding32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end
   uint_t v;
   for(uint_t k=0;k<ShardSize;++k)
   {
-    for(v=w+A; v<Aend;v+=A)
+    for(v=w+A; v<Aend; v+=A)
     {
       ++counts_local[ __popc( w^v ) ];
     }
@@ -128,9 +128,15 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
 
     hcounts[dev] = new uintll_t[count_counts];
     memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
-
-    offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
-    end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
+    if(nr_dev==4){
+      offset = count_shards *(1.0 - (dev==3 ? 0.5 : dev==2 ? 0.707107 : dev==1 ? 0.86603 : 1) );
+      end = count_shards * (1.0 - (dev==3 ? 0.0 : dev==2 ? 0.5 : dev==1 ? 0.707107 : 0.86603) );
+    }else{
+      //offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
+      //end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
+      offset = count_shards / nr_dev * (dev);
+      end = count_shards /  nr_dev * (dev+1);
+    }
 
     xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
     blocks.x= xblocks; blocks.y = xblocks;
@@ -140,13 +146,13 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
       printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
     }
 
-    if(dev==0)
+    if(dev==nr_dev-1)
       results_gpu.start(i_runtime);
  
     ANCoding::bridge<Caller>(n, blocks, threads,A,dcounts[dev], offset, end);
     CHECK_LAST("Kernel failed.");
           
-    if(dev==0) 
+    if(dev==nr_dev-1) 
       results_gpu.stop(i_runtime);    
   }
 

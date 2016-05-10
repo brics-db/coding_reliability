@@ -27,7 +27,8 @@ struct Flags {
   int mc_search_super_A;
   int file_output;
   int nr_dev;
-} g_flags = {0,61,0,0,0,0,100,0,8,0,0,-1.0,0,0,0};
+  int verbose;
+} g_flags = {0,61,0,0,0,0,100,0,8,0,0,-1.0,0,0,0,1};
 
 void print_help(){
   printf("\nUSAGE:\n\n\t-h\tprint help\n"
@@ -45,6 +46,7 @@ void print_help(){
          "\t-t NUM\t test curand generator with number of iterations\n"
          "\t-f    \t with file output (file name is generated).\n"
          "\t-d NUM\t Number of GPUs to be used (0=max).\n"
+         "\t-v NUM\t Verbosity level (0,1,2).\n"
 	 "\n");
 }
 
@@ -60,7 +62,9 @@ void parse_cmdline(int argc, char** argv)
       print_help();
       exit(0);
     }
-    if(strcmp(argv[i],"-a")==0){
+    if(strcmp(argv[i],"-v")==0){
+      g_flags.verbose = atoi(argv[i+1]);
+    }else if(strcmp(argv[i],"-a")==0){
       g_flags.an_coding = 1;
       g_flags.h_coding = 0;
       g_flags.A = atoi(argv[i+1]);
@@ -196,20 +200,27 @@ int main(int argc, char** argv)
                           g_flags.n, 
                           g_flags.mc_iterations, g_flags.mc_iterations_2,
                           g_flags.A,
-                          1,nullptr,nullptr,nullptr,
+                          g_flags.verbose,nullptr,nullptr,nullptr,
                           g_flags.file_output, 
                           g_flags.nr_dev);
       else
         run_ancoding_mc(g_flags.n, 
                         g_flags.mc_iterations,
                         g_flags.A,
-                        1,nullptr,nullptr,nullptr,
+                        g_flags.verbose,nullptr,nullptr,nullptr,
                         g_flags.file_output, 
                         g_flags.nr_dev);
     }else if(g_flags.use_cpu)
-      run_ancoding_cpu(g_flags.n, g_flags.A, 1, nullptr, nullptr,g_flags.file_output);
+      run_ancoding_cpu(g_flags.n, 
+                       g_flags.A, 
+                       g_flags.verbose, nullptr, nullptr,
+                       g_flags.file_output);
     else
-      run_ancoding(g_flags.n, g_flags.A, 1, nullptr, nullptr,g_flags.file_output, g_flags.nr_dev);
+      run_ancoding(g_flags.n, 
+                   g_flags.A, 
+                   g_flags.verbose, nullptr, nullptr,
+                   g_flags.file_output, 
+                   g_flags.nr_dev);
   }else if(g_flags.h_coding==1){ /* Ext Hamming Code */
     if(g_flags.use_cpu)
       run_hamming_cpu(g_flags.n,g_flags.with_1bit,g_flags.file_output);

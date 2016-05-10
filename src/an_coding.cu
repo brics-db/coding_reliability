@@ -128,14 +128,14 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
 
     hcounts[dev] = new uintll_t[count_counts];
     memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
-    if(nr_dev==4){
+    if(nr_dev==4){ // @todo generic formula?
       offset = count_shards *(1.0 - (dev==3 ? 0.5 : dev==2 ? 0.707107 : dev==1 ? 0.86603 : 1) );
       end = count_shards * (1.0 - (dev==3 ? 0.0 : dev==2 ? 0.5 : dev==1 ? 0.707107 : 0.86603) );
     }else{
-      //offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
-      //end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
-      offset = count_shards / nr_dev * (dev);
-      end = count_shards /  nr_dev * (dev+1);
+      offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
+      end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
+      //offset = count_shards / nr_dev * (dev);
+      //end = count_shards /  nr_dev * (dev+1);
     }
 
     xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
@@ -143,16 +143,16 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
     if(verbose>1){
       CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
-      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
+      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu, load %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards, (end-offset)*(count_shards-(end+offset)/2ull));
     }
 
-    if(dev==nr_dev-1)
+    if(dev==0)
       results_gpu.start(i_runtime);
  
     ANCoding::bridge<Caller>(n, blocks, threads,A,dcounts[dev], offset, end);
     CHECK_LAST("Kernel failed.");
           
-    if(dev==nr_dev-1) 
+    if(dev==0) 
       results_gpu.stop(i_runtime);    
   }
 

@@ -23,8 +23,8 @@
   22,             0,             0,         65536,            0,            0
 
 
-0,"Kernel Runtime",0.009025408,s
-1,"Total Runtime",0.04221656,s
+0,"Kernel Runtime",0.005699424,s
+1,"Total Runtime",0.03679992,s
 
 "Total",4.294967e+09
 "MaxAbsErr",4.625197e-05

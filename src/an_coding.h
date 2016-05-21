@@ -64,6 +64,17 @@ inline uintll_t getCountCounts(uint_t n)
   return result;
 }
 
+
+__device__
+inline uint_t dbitcount(uint_t v) {
+  return __popc(v);
+}
+__device__
+inline uintll_t dbitcount(uintll_t v) {
+  return __popcll(v);
+}
+
+
 } // ANCoding
 
 

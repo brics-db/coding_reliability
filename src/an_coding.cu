@@ -13,11 +13,12 @@
 #include <ostream>
 using namespace std;
 
+
 template<uint_t CountCounts, typename T>
 __global__
 void dancoding(T n, T A, uintll_t* counts, T offset, T end, T Aend)
 {
-  uint_t counts_local[CountCounts] = { 0 };
+  T counts_local[CountCounts] = { 0 };
   T v, w;
   for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
        i < end; 
@@ -26,7 +27,7 @@ void dancoding(T n, T A, uintll_t* counts, T offset, T end, T Aend)
     w = A*i;
     for(v=w+A; v<Aend; v+=A)
     {
-      ++counts_local[ __popc( w^v ) ];
+      ++counts_local[ ANCoding::dbitcount( w^v ) ];
     }
   }
   for(uint_t c=1; c<CountCounts; ++c)
@@ -41,12 +42,13 @@ struct Caller
 {
   void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end){
     uintll_t Aend = A<<n;
-    if(Aend<(1ull<<32))
+    if(Aend<(1ull<<32)){
       dancoding<ANCoding::traits::CountCounts<N>::value, uint_t >
         <<< blocks, threads >>>(n, A, counts, offset, end, Aend);
-    else   
+    }else{
       dancoding<ANCoding::traits::CountCounts<N>::value, uintll_t >
         <<< blocks, threads >>>(n, A, counts, offset, end, Aend);
+    }
   }
 };
 
@@ -117,6 +119,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
     // grid-stride
     // https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
     blocks.x = 32*numSMs;
+
     if(verbose>1){
       CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);

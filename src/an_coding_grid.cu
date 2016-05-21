@@ -17,7 +17,7 @@ template<uint_t CountCounts, typename T, typename TReal>
 __global__
 void dancoding_grid_1d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TReal stepsize)
 {
-  uint_t counts_local[CountCounts] = { 0 };
+  T counts_local[CountCounts] = { 0 };
   T v, w, k;
   for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
        i < end; 
@@ -26,7 +26,7 @@ void dancoding_grid_1d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TRea
     w = A*i;
     for(v=0, k=0; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
     {
-      ++counts_local[ __popc( w^v ) ];
+      ++counts_local[ ANCoding::dbitcount( w^v ) ];
     }
   }
   for(uint_t c=1; c<CountCounts; ++c)
@@ -38,7 +38,7 @@ __global__
 void dancoding_grid_2d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TReal stepsize, TReal stepsize2)
 {
 
-  uintll_t counts_local[CountCounts] = { 0 };
+  T counts_local[CountCounts] = { 0 };
   T v, w, k;
   for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
        i < end; 
@@ -47,7 +47,7 @@ void dancoding_grid_2d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TRea
     w = A*static_cast<T>(i*stepsize2);
     for(v=0, k=0; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
     {
-      ++counts_local[ __popc( w^v ) ];
+      ++counts_local[ ANCoding::dbitcount( w^v ) ];
     }
   }
   for(int c=1; c<CountCounts; ++c)
@@ -150,7 +150,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
     offset = iterations2 / nr_dev * dev;
     end = iterations2 / nr_dev * (dev+1);
 
-    blocks.x = 32*numSMs;
+    blocks.x = 8*numSMs;
 
     // 3) Remainder of the slice
     if(verbose>1){

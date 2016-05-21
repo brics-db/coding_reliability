@@ -13,43 +13,21 @@
 #include <ostream>
 using namespace std;
 
-template<uintll_t ShardSize,uint_t CountCounts>
+template<uint_t CountCounts, typename T>
 __global__
-void dancoding(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t Aend)
+void dancoding(T n, T A, uintll_t* counts, T offset, T end, T Aend)
 {
-  uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
-  if(shardXid>=end)
-    return;
-  uintll_t counts_local[CountCounts] = { 0 };
-  uintll_t w = A * shardXid * ShardSize;
-  uintll_t v;
-  for(uint_t k=0;k<ShardSize;++k)
-  {
-    for(v=w+A; v<Aend; v+=A)
-      ++counts_local[ __popcll( w^v ) ];
-    w+=A;
-  }
-  for(uint_t c=1; c<CountCounts; ++c)
-    atomicAdd(counts+c, counts_local[c]);
-}
-
-template<uintll_t ShardSize,uint_t CountCounts>
-__global__
-void dancoding32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end, uint_t Aend)
-{
-  uint_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
-  if(shardXid>=end)
-    return;
   uint_t counts_local[CountCounts] = { 0 };
-  uint_t w = A * shardXid * ShardSize;
-  uint_t v;
-  for(uint_t k=0;k<ShardSize;++k)
+  T v, w;
+  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
+       i < end; 
+       i += blockDim.x * gridDim.x) 
   {
+    w = A*i;
     for(v=w+A; v<Aend; v+=A)
     {
       ++counts_local[ __popc( w^v ) ];
     }
-    w+=A;
   }
   for(uint_t c=1; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
@@ -64,10 +42,10 @@ struct Caller
   void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end){
     uintll_t Aend = A<<n;
     if(Aend<(1ull<<32))
-      dancoding32<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+      dancoding<ANCoding::traits::CountCounts<N>::value, uint_t >
         <<< blocks, threads >>>(n, A, counts, offset, end, Aend);
     else   
-      dancoding<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+      dancoding<ANCoding::traits::CountCounts<N>::value, uintll_t >
         <<< blocks, threads >>>(n, A, counts, offset, end, Aend);
   }
 };
@@ -106,8 +84,6 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = ANCoding::getShardsSize(n);
-  const uintll_t count_shards = count_messages / size_shards;
   const uint_t count_counts = n + h + 1;
 
   uintll_t** dcounts;
@@ -118,33 +94,33 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   for(int dev=0; dev<nr_dev; ++dev)
   {
     dim3 threads(128, 1, 1);
-    uint_t xblocks;
+    dim3 blocks(1);
     uintll_t offset, end;
-    dim3 blocks;
+    int numSMs;
+    CHECK_ERROR( cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, dev) );
 
     CHECK_ERROR( cudaSetDevice(dev) );
     CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
     CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
 
     hcounts[dev] = new uintll_t[count_counts];
-    memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
     if(nr_dev>1) {
       // load balancer
       double faca = 1.0 - sqrt( 1.0 - static_cast<double>(dev)/nr_dev );
       double facb = 1.0 - sqrt( 1.0 - static_cast<double>(dev+1)/nr_dev );
-      offset = ceil(count_shards * faca);
-      end    = ceil(count_shards * facb);
+      offset = ceil(count_messages * faca);
+      end    = ceil(count_messages * facb);
     }else{
       offset = 0;
-      end = count_shards;
+      end = count_messages;
     }
-    xblocks  = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
-    blocks.x = xblocks; 
-    blocks.y = xblocks;
+    // grid-stride
+    // https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
+    blocks.x = 32*numSMs;
     if(verbose>1){
       CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
-      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu, load %Lg\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards, 1.0L*(end-offset)*(count_shards-(end+offset)/2.0L));
+      printf("Dev %d: SMs: %d Blocks: %d %d, offset %llu, end %llu, end %llu, load %Lg\n", dev, numSMs, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((blocks.x-1) * (blocks.x) + (blocks.x-1)) + offset), 1.0L*(end-offset)*(count_messages-(end+offset)/2.0L));
     }
 
     if(dev==0)

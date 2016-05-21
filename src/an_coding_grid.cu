@@ -13,86 +13,47 @@
 #include <iostream>
 #include <ostream>
 
-template<uintll_t ShardSize,uint_t CountCounts>
+template<uint_t CountCounts, typename T, typename TReal>
 __global__
-void dancoding_grid_1d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, double stepsize)
+void dancoding_grid_1d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TReal stepsize)
 {
-  uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
-  if(shardXid>=end)
-    return;
-
-  uintll_t counts_local[CountCounts] = { 0 };
-
-  uintll_t w = A * shardXid * ShardSize;
-  uintll_t wend = A * (shardXid+1) * ShardSize;
-  uintll_t v;
-  uintll_t it = 0;
-  for(;w<wend;w+=A)
-  {
-    for(it=0; it<iterations; ++it)
-    {
-      v = it*stepsize;
-      v *= A;
-      ++counts_local[ __popcll( w^v ) ];
-    }
-  }
-  for(int c=0; c<CountCounts; ++c)
-    atomicAdd(counts+c, counts_local[c]);
-}
-template<uintll_t ShardSize,uint_t CountCounts>
-__global__
-void dancoding_grid_1d_32(uint_t n, uint_t A, uintll_t* counts, uint_t offset, uint_t end, uint_t iterations, double stepsize)
-{
-  uint_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
-  if(shardXid>=end)
-    return;
-
   uint_t counts_local[CountCounts] = { 0 };
-
-  uint_t w = A * shardXid * ShardSize;
-  uint_t v;
-  uint_t it = 0;
-  for(uint_t k=0;k<ShardSize;++k)
+  T v, w, k;
+  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
+       i < end; 
+       i += blockDim.x * gridDim.x) 
   {
-    for(it=0; it<iterations; ++it)
+    w = A*i;
+    for(v=0, k=0; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
     {
-      v = it*stepsize;
-      v *= A;
       ++counts_local[ __popc( w^v ) ];
     }
-    w+=A;
   }
-  for(int c=0; c<CountCounts; ++c)
+  for(uint_t c=1; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
 
-template<uintll_t ShardSize,uint_t CountCounts>
+template<uint_t CountCounts, typename T, typename TReal>
 __global__
-void dancoding_grid_2d(uintll_t n, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, double stepsize, double stepsize2)
+void dancoding_grid_2d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TReal stepsize, TReal stepsize2)
 {
-  uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
-  if(shardXid>=end)
-    return;
 
   uintll_t counts_local[CountCounts] = { 0 };
-  uintll_t s = stepsize2;
-  uintll_t w = A * shardXid * ShardSize * s;
-  uintll_t w_end = A * (shardXid+1) * ShardSize * s;
-  uintll_t v;
-  uintll_t it = 0;
-
-  for( ; w<w_end; w += A*s)
+  T v, w, k;
+  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
+       i < end; 
+       i += blockDim.x * gridDim.x) 
   {
-    for(it=0; it<iterations; ++it)
+    w = A*static_cast<T>(i*stepsize2);
+    for(v=0, k=0; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
     {
-      v = it*stepsize;
-      v *= A;
-      ++counts_local[ __popcll( w^v ) ];
-    }    
+      ++counts_local[ __popc( w^v ) ];
+    }
   }
-  for(int c=0; c<CountCounts; ++c)
+  for(int c=1; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
+
 
 /**
  * Caller for kernel 
@@ -101,20 +62,27 @@ template<uintll_t N>
 struct Caller
 {
   template<typename T>
-  void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uintll_t iterations, T stepsize, T stepsize2){
+  void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, T stepsize, T stepsize2){
+    uintll_t Aend = A<<n;
+    bool use32bit = Aend<(1ull<<32);
     if(gdim==1){
-      uintll_t Aend = A<<n;
-      if(Aend<(1ull<<32))
-        dancoding_grid_1d_32<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-          <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
+      if(use32bit)
+        dancoding_grid_1d<ANCoding::traits::CountCounts<N>::value, uint_t >
+          <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize);
+      else   
+        dancoding_grid_1d<ANCoding::traits::CountCounts<N>::value, uintll_t >
+          <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize);
+    }else{
+      if(use32bit)
+        dancoding_grid_2d<ANCoding::traits::CountCounts<N>::value, uint_t >
+          <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize, stepsize2);
       else
-        dancoding_grid_1d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-          <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize);
-    }else
-      dancoding_grid_2d<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-        <<< blocks, threads >>>(n, A, counts, offset, end, iterations, stepsize, stepsize2);
+        dancoding_grid_2d<ANCoding::traits::CountCounts<N>::value, uintll_t >
+          <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize, stepsize2);
+    }
   }
 };
+
 
 double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t iterations2, uintll_t A, int verbose, double* times, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
 {
@@ -147,10 +115,9 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = ANCoding::getShardsSize(n); 
   iterations = iterations>count_messages?count_messages:iterations;
+  iterations2= gdim==1 ? count_messages : iterations2>count_messages ? count_messages : iterations2;
 
-  const uintll_t count_shards = (gdim==2 ? iterations2 : count_messages) / size_shards;
   const uintll_t bitcount_A = ceil(log((double)A)/log(2.0));
   const uint_t count_counts = n + bitcount_A + 1;
 
@@ -164,7 +131,6 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
   for(int dev=0; dev<nr_dev; ++dev)
   {
     dim3 threads(128, 1, 1);
-    uint_t xblocks;
     uintll_t offset, end;
     dim3 blocks;
 
@@ -173,27 +139,28 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
     CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
     CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
 
+    int numSMs;
+    CHECK_ERROR( cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, dev) );
+    
     hcounts[dev] = new uintll_t[count_counts];
-    memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
 
     //end = 0;
     //    offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
     //    end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
-    offset = count_shards / nr_dev * dev;
-    end = count_shards / nr_dev * (dev+1);
+    offset = iterations2 / nr_dev * dev;
+    end = iterations2 / nr_dev * (dev+1);
 
-    xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
-    blocks.x= xblocks; blocks.y = xblocks;
+    blocks.x = 32*numSMs;
 
     // 3) Remainder of the slice
     if(verbose>1){
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
-      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
+      printf("Dev %d: SMs: %d Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, numSMs, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((blocks.x-1) * (blocks.x) + (blocks.x-1)) + offset));
     }
     if(dev==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n, blocks, threads, gdim, A, dcounts[dev], offset, end, iterations, 1.0L*count_messages/iterations, 1.0L*count_messages/iterations2);
+    ANCoding::bridge<Caller>(n, blocks, threads, gdim, A, dcounts[dev], offset, end, 1.0*count_messages/iterations, 1.0*count_messages/iterations2);
 
     CHECK_LAST("Kernel failed.");
 
@@ -220,7 +187,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
 
   // results
   uint128_t counts[64] = {0};
-//  counts[0] = 1ull<<n;
+  counts[0] = 1ull<<n;
   long double factor = gdim==1 ? pow(2.0L,n)/iterations : pow(4.0L,n)/(iterations*iterations2);
   for(uint_t i=0; i<count_counts; ++i)
   {

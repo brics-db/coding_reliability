@@ -169,9 +169,6 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
     delete[] hcounts[dev];
   }
 
-
-  for(int i=0;i<count_counts; ++i)
-    std::cout << hcounts[0][i] << std::endl;
   // results
   uint128_t counts[64] = {0};
   counts[0] = 1ull<<n;

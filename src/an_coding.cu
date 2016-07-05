@@ -13,16 +13,15 @@
 #include <ostream>
 using namespace std;
 
-
 template<uint_t CountCounts, typename T>
 __global__
 void dancoding(T n, T A, uintll_t* counts, T offset, T end, T Aend)
 {
   T counts_local[CountCounts] = { 0 };
   T v, w;
-  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
-       i < end; 
-       i += blockDim.x * gridDim.x) 
+  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset;
+       i < end;
+       i += blockDim.x * gridDim.x)
   {
     w = A*i;
     for(v=w+A; v<Aend; v+=A)
@@ -35,7 +34,7 @@ void dancoding(T n, T A, uintll_t* counts, T offset, T end, T Aend)
 }
 
 /**
- * Caller for kernel 
+ * Caller for kernel
  */
 template<uintll_t N>
 struct Caller
@@ -52,7 +51,7 @@ struct Caller
   }
 };
 
-void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
+void run_ancoding(uintll_t n, uintll_t A, int verbose, double* times, uintll_t* minb, uint128_t* mincb, int file_output, int nr_dev_max)
 {
   uint_t h = ceil(log(A)/log(2.0));
   assert((n+h)<ANCoding::getCountCounts(n));
@@ -79,7 +78,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   for(int dev=0; dev<nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
+    CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferL1) );
     CHECK_ERROR( cudaDeviceSynchronize() );
   }
 
@@ -161,11 +160,11 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
   {
     counts[i] = hcounts[0][i]<<1;
   }
-  
+
   if(minb!=nullptr && mincb!=nullptr)
   {
-    *minb=0xFFFF;;
-    *mincb=0xFFFFFFFF;
+    *minb=0xFFFF;
+    *mincb=static_cast<uint128_t>(-1);
     for(uint_t i=1; i<count_counts/2; ++i)
     {
       if(counts[i]!=0 && counts[i]<*mincb)
@@ -174,6 +173,12 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t*
         *mincb=counts[i];
       }
     }
+  }
+
+  if(times!=NULL)
+  {
+    times[0] = stats.getAverage(0);
+    times[1] = stats.getAverage(1);
   }
 
   if(verbose || file_output){

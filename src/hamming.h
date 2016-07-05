@@ -59,6 +59,7 @@ namespace traits {
   // trait for Shards sizes
   template<uintll_t N>
   struct Shards: std::integral_constant<uintll_t,1>{};
+  template<> struct Shards<4>: std::integral_constant<uintll_t,1>{};
   template<> struct Shards<8>: std::integral_constant<uintll_t,1>{};
   template<> struct Shards<16>: std::integral_constant<uintll_t,16>{};
   template<> struct Shards<24>: std::integral_constant<uintll_t,128>{};
@@ -68,6 +69,7 @@ namespace traits {
   // trait for size of array counts[]
   template<uintll_t N>
   struct CountCounts: std::integral_constant<int,14>{};
+  template<> struct CountCounts<4>: std::integral_constant<int,12>{};
   template<> struct CountCounts<8>: std::integral_constant<int,14>{};
   template<> struct CountCounts<16>: std::integral_constant<int,23>{};
   template<> struct CountCounts<24>: std::integral_constant<int,31>{};
@@ -81,6 +83,7 @@ template<template<uintll_t> class TFunctor, typename... Types>
 inline void bridge(uint_t n, Types... args)
 {
   switch(n){
+  case 4:  return TFunctor<8>()(args...);
   case 8:  return TFunctor<8>()(args...);
   case 16: return TFunctor<16>()(args...); 
   case 24: return TFunctor<24>()(args...); 

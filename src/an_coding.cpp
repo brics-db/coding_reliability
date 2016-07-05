@@ -87,7 +87,7 @@ void countANCodingUndetectableErrors(uintll_t n, uintll_t A, uint128_t* counts, 
   } // parallel
 }
 
-void run_ancoding_cpu(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintll_t* mincb, int file_output)
+void run_ancoding_cpu(uintll_t n, uintll_t A, int verbose, double* times, uintll_t* minb, uint128_t* mincb, int file_output)
 {
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -96,7 +96,7 @@ void run_ancoding_cpu(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintl
 
   const uintll_t count_counts = n+ceil(log((double)A)/log(2.0))+1; 
   uint128_t* counts = new uint128_t[count_counts];
-  memset(counts, 0, count_counts * sizeof(uintll_t));
+  memset(counts, 0, count_counts * sizeof(uint128_t));
 
   results_cpu.start(i_totaltime);
    countANCodingUndetectableErrors(n, A, counts, count_counts);
@@ -104,6 +104,24 @@ void run_ancoding_cpu(uintll_t n, uintll_t A, int verbose, uintll_t* minb, uintl
   if(verbose || file_output)
     process_result_ancoding(counts, stats, n, A, file_output?"ancoding_cpu":nullptr);
 
+  if(minb!=nullptr && mincb!=nullptr)
+  {
+    *minb=0xFFFF;;
+    *mincb=0xFFFFFFFF;
+    for(uint_t i=1; i<count_counts/2; ++i)
+    {
+      if(counts[i]!=0 && counts[i]<*mincb)
+      {
+        *minb=i;
+        *mincb=counts[i];
+      }
+    }
+  }
+  if(times!=NULL)
+  {
+    times[0] = stats.getAverage(0);
+    times[1] = stats.getAverage(1);
+  }
   delete[] counts; 
 
 }

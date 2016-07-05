@@ -24,7 +24,7 @@ struct Flags {
   int use_cpu;
   int rand_gen;
   double mc_search_bound;
-  int mc_search_super_A;
+  int search_super_A;
   int file_output;
   int nr_dev;
   int verbose;
@@ -38,7 +38,7 @@ void print_help(){
          "\t-g NUM\t 1=1D-Grid 2=2D-Grid approximation with -m NUM points per dim. (Better than MonteCarlo)\n"
          "\t-s DEC\t ... AN-coding search optimal number of monte carlo iterations for given error bound <1.0.\n"
          "\t      \t -m or -M gives start value of number of iterations.\n"
-         "\t-S    \t ... search super A with same code word width as hamming\n"
+         "\t-S NUM\t ... search super A within 2^NUM<A<2^(NUM+1)\n"
          "\t-m NUM\t Monte-Carlo with number of iterations, GPU, for -e 2 and -a\n"
          "\t-M NUM\t ... number of iterations in second dimension for 2D grid\n"
 	 "\t-n NUM\t number of bits as input size\n"
@@ -78,7 +78,8 @@ void parse_cmdline(int argc, char** argv)
       g_flags.mc_search_bound=atof(argv[i+1]);
       assert(g_flags.mc_search_bound>0.);
     }else if(strcmp(argv[i],"-S")==0){
-      g_flags.mc_search_super_A=1;
+      g_flags.search_super_A=atoi(argv[i+1]);
+      assert(g_flags.search_super_A>0);
     }else if(strcmp(argv[i],"-t")==0){
       g_flags.rand_gen = 1;
       g_flags.mc_iterations=atoi(argv[i+1]);
@@ -110,7 +111,7 @@ void parse_cmdline(int argc, char** argv)
       assert(g_flags.nr_dev>=0);
     }
   }  
-  if(g_flags.h_coding && g_flags.n!=8 && g_flags.n!=16 && g_flags.n!=24 && g_flags.n!=32 && g_flags.n!=40 && g_flags.n!=48)
+  if(g_flags.h_coding && g_flags.n!=4 && g_flags.n!=8 && g_flags.n!=16 && g_flags.n!=24 && g_flags.n!=32 && g_flags.n!=40 && g_flags.n!=48)
   {
     g_flags.n=8;
     printf("Wrong input size, so set n to 8.\n");       
@@ -119,26 +120,32 @@ void parse_cmdline(int argc, char** argv)
     g_flags.mc_iterations_2 = g_flags.mc_iterations; 
 }
 
-void ancoding_mc_search_super_A()
+void ancoding_search_super_A()
 {
-  uintll_t mincb = 0, mxmincb=static_cast<uintll_t>(-1), mxmincb2=static_cast<uintll_t>(-1);
+  uint128_t mincb = 0, mxmincb=static_cast<uint128_t>(-1), mxmincb2=static_cast<uint128_t>(-1);
   uintll_t minb = 0, mxminb=0, mxminb2=0, A2=0;
   uintll_t n = g_flags.n;
-  uintll_t A = n<16 ? 17 : n<32 ? 33 : 65;
-  uintll_t A_end = n<16 ? 31 : n<32 ? 63 : 127;
+  uintll_t A = (1<<(g_flags.search_super_A-1))+1;
+  uintll_t A_end =(1<<(g_flags.search_super_A))-1;
   uintll_t superA = 0;
-  double times = 0;
+  double times[2] = {0};
   double ttimes = 0;
   for(;A<=A_end; A+=2)
   {
-    if(n==8)
-      run_ancoding(n, A, 0, &minb, &mincb, 0, g_flags.nr_dev);
+    if(n<=16)
+      run_ancoding(n, A, 0,times, &minb, &mincb, 0, g_flags.nr_dev);
     else
-      run_ancoding_mc(n, g_flags.mc_iterations, A, 0, &times, &minb, &mincb, 0, g_flags.nr_dev);
-      
+      run_ancoding_grid(g_flags.with_grid,
+                        g_flags.n,
+                        g_flags.mc_iterations, g_flags.mc_iterations_2,
+                        A,
+                        0, times, &minb, &mincb,
+                        0,
+                        g_flags.nr_dev);
+
     if(mxminb<minb || (mxminb==minb && mxmincb>mincb))
     {
-      if(mxminb==3 && mxmincb<mxmincb2)
+      if(mxminb!=minb)
       {
         mxminb2=mxminb;
         mxmincb2=mxmincb;
@@ -147,14 +154,21 @@ void ancoding_mc_search_super_A()
       mxminb=minb;
       mxmincb=mincb;
       superA = A;
-      printf("%zu: c[%zu] = %zu\n", A, minb, mincb);
+      std::cout << A<<": c["<<minb<<"] = "<<mincb<<std::endl;
     }
-    ttimes += times;
+    ttimes += times[1];
   }
-  printf("Found super A=%zu after %.3lf s.\n A=%zu\tprev.A=%zu\n c[%zu]=%zu\tc[%zu]=%zu\n", 
-         superA, ttimes, superA, A2, mxminb,mxmincb, mxminb2,mxmincb2);
+  std::cout<<"n,"<<n
+           <<",h,"<<g_flags.search_super_A
+           <<",superA,"<<superA
+           <<",prevA,"<<A2
+           <<",c["<<mxminb<<"],"<<mxmincb
+           <<",c["<<mxminb2<<"],"<<mxmincb2
+           <<",time[s],"<<ttimes
+           <<(n<=16?",exact":",grid")
+           <<std::endl;
 }
-
+/// Find #iterations according to a given error bound
 void ancoding_mc_search()
 {
   int step=0;
@@ -189,11 +203,11 @@ int main(int argc, char** argv)
   parse_cmdline(argc,argv);
   if(g_flags.rand_gen)
     test_curand_raw(g_flags.n, g_flags.mc_iterations, g_flags.nr_dev);
-  else if(g_flags.an_coding){  /* AN-coding */
+  else if(g_flags.an_coding || g_flags.search_super_A){  /* AN-coding */
     if(g_flags.mc_search_bound>0.0)
       ancoding_mc_search();
-    else if(g_flags.mc_search_super_A)
-      ancoding_mc_search_super_A();
+    else if(g_flags.search_super_A)
+      ancoding_search_super_A();
     else if(g_flags.with_mc){
       if(g_flags.with_grid)
         run_ancoding_grid(g_flags.with_grid, 
@@ -213,12 +227,12 @@ int main(int argc, char** argv)
     }else if(g_flags.use_cpu)
       run_ancoding_cpu(g_flags.n, 
                        g_flags.A, 
-                       g_flags.verbose, nullptr, nullptr,
+                       g_flags.verbose, nullptr, nullptr, nullptr,
                        g_flags.file_output);
     else
       run_ancoding(g_flags.n, 
                    g_flags.A, 
-                   g_flags.verbose, nullptr, nullptr,
+                   g_flags.verbose, nullptr, nullptr, nullptr,
                    g_flags.file_output, 
                    g_flags.nr_dev);
   }else if(g_flags.h_coding==1){ /* Ext Hamming Code */

@@ -84,7 +84,7 @@ struct Caller
 };
 
 
-double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t iterations2, uintll_t A, int verbose, double* times, uintll_t* minb, uintll_t* mincb, int file_output, int nr_dev_max)
+double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t iterations2, uintll_t A, int verbose, double* times, uintll_t* minb, uint128_t* mincb, int file_output, int nr_dev_max)
 {
   assert(A<(1ull<<n));
   int tmp_nr_dev;
@@ -206,11 +206,11 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
 
   if(minb!=nullptr && mincb!=nullptr)
   {
-    *minb=0xFFFF;;
-    *mincb=static_cast<uintll_t>(-1);
+    *minb=0xFFFF;
+    *mincb=static_cast<uint128_t>(-1);
     for(uint_t i=1; i<count_counts/2; ++i)
     {
-      if(counts[i]!=0 && counts[i]<static_cast<uint128_t>(*mincb))
+      if(counts[i]!=0 && counts[i]<*mincb)
       {
         *minb=i;
         *mincb=counts[i];

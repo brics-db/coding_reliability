@@ -21,6 +21,9 @@ __device__ inline uintll_t computeHamming(const uintll_t &value) {
   hamming |= (__popcll(value & 0x56AAAD5B) & 0x1);
   hamming |= (__popcll(value & 0x9B33366D) & 0x1) << 1;
   hamming |= (__popcll(value & 0xE3C3C78E) & 0x1) << 2;
+ if(N<8)
+  return (value<<3) | hamming;
+ else
   hamming |= (__popcll(value & 0x03FC07F0) & 0x1) << 3;
  if(N<16)
   return (value << 4) | hamming;
@@ -44,12 +47,11 @@ void dhamming(uintll_t* counts, uintll_t offset, uintll_t end)
   uintll_t counts_local[CountCounts] = { 0 };
 
   uintll_t w = shardXid * ShardSize;
-  
   for(uintll_t k=0; k<ShardSize; ++k)
   {
     ++counts_local[ __popcll( computeHamming<N>( w+k ) ) ];
   }
-  for(int c=3; c<CountCounts; ++c)
+  for(int c=0/*3*/; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
 }
 
@@ -97,7 +99,7 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
   const uintll_t count_messages = (1ull << n);
   const uintll_t size_shards = Hamming::getShardsSize(n);
   const uintll_t count_shards = count_messages / size_shards;
-  const uint_t h = ( n==8 ? 5 : (n<32?6:7) );
+  const uint_t h = n==4 ? 4 : ( n==8 ? 5 : (n<32?6:7) );
   const uintll_t bitcount_message = n + h;
   const uint_t count_counts = bitcount_message + 1;
   
@@ -168,7 +170,8 @@ void run_hamming(uintll_t n, int with_1bit, int file_output, int nr_dev_max)
   }
 
 
-  
+  for(int i=0;i<count_counts; ++i)
+    std::cout << hcounts[0][i] << std::endl;
   // results
   uint128_t counts[64] = {0};
   counts[0] = 1ull<<n;

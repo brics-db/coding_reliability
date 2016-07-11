@@ -114,6 +114,7 @@ void run_ancoding_cpu(uintll_t n, uintll_t A, int verbose, double* times, uintll
       {
         *minb=i;
         *mincb=counts[i];
+        break;
       }
     }
   }

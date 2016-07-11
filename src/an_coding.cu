@@ -171,6 +171,7 @@ void run_ancoding(uintll_t n, uintll_t A, int verbose, double* times, uintll_t* 
       {
         *minb=i;
         *mincb=counts[i];
+        break;
       }
     }
   }

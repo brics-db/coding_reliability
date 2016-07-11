@@ -203,6 +203,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
       {
         *minb=i;
         *mincb=counts[i];
+        break;
       }
     }
   }

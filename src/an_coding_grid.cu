@@ -214,6 +214,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
       {
         *minb=i;
         *mincb=counts[i];
+        break;
       }
     }
   }

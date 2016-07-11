@@ -142,7 +142,6 @@ void ancoding_search_super_A()
                         0, times, &minb, &mincb,
                         0,
                         g_flags.nr_dev);
-
     if(mxminb<minb || (mxminb==minb && mxmincb>mincb))
     {
       if(mxminb!=minb)

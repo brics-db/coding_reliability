@@ -19,8 +19,8 @@ namespace traits {
   template<uintll_t N>
   struct CountCounts: std::integral_constant<int,16>{};
   template<> struct CountCounts<8>: std::integral_constant<int,32>{};
-  template<> struct CountCounts<16>: std::integral_constant<int,48>{};
-  template<> struct CountCounts<24>: std::integral_constant<int,64>{};
+  template<> struct CountCounts<16>: std::integral_constant<int,32>{};
+  template<> struct CountCounts<24>: std::integral_constant<int,32>{};
   template<> struct CountCounts<32>: std::integral_constant<int,64>{};
   template<> struct CountCounts<40>: std::integral_constant<int,64>{};
   template<> struct CountCounts<48>: std::integral_constant<int,64>{};
@@ -30,7 +30,7 @@ namespace traits {
 template<template<uintll_t> class TFunctor, typename... Types>
 inline void bridge(uint_t n, Types... args)
 {
-  uint_t n_up = n<=8 ? 8 : n<=16 ? 16 : n<=32 ? 32 : n<=40 ? 40 : 48;
+  uint_t n_up = n<=8 ? 8 : n<=16 ? 16 : n<=24 ? 24 : n<=32 ? 32 : n<=40 ? 40 : 48;
   switch(n_up){
   case 8:  return TFunctor<8>()(n, args...);
   case 16: return TFunctor<16>()(n, args...); 
@@ -70,7 +70,7 @@ inline uint_t dbitcount(uint_t v) {
   return __popc(v);
 }
 __device__
-inline uintll_t dbitcount(uintll_t v) {
+inline uint_t dbitcount(uintll_t v) {
   return __popcll(v);
 }
 

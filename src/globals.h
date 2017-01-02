@@ -28,8 +28,8 @@ T binomialCoeff(T n, T k);
 class Statistics;
 void process_result_hamming(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix = nullptr);
 void process_result_hamming_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t h, int, uint_t iterations, const char* file_prefix = nullptr);
-void process_result_ancoding(uint128_t* counts, Statistics stats, uint_t n, uint_t A, const char* file_prefix = nullptr);
-void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t A, uint_t iterations, const char* file_prefix = nullptr);
+void process_result_ancoding(uint128_t* counts, Statistics stats, uint_t n, uint_t A, const char* file_prefix = nullptr, std::string app = "");
+void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t A, uint_t iterations, const char* file_prefix = nullptr, std::string app = "");
 std::ostream& operator<<( std::ostream& dest, uint128_t value );
 
 template<typename T>

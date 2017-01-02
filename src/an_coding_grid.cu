@@ -9,7 +9,7 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <omp.h>
-
+#include <sstream>
 #include <iostream>
 #include <ostream>
 
@@ -19,9 +19,9 @@ void dancoding_grid_1d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TRea
 {
   T counts_local[CountCounts] = { 0 };
   T v, w, k;
-  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset; 
-       i < end; 
-       i += blockDim.x * gridDim.x) 
+  for (T i = blockIdx.x * blockDim.x + threadIdx.x + offset;
+       i < end;
+       i += blockDim.x * gridDim.x)
   {
     w = A*i;
     for(v=0, k=0; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
@@ -31,6 +31,52 @@ void dancoding_grid_1d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TRea
   }
   for(uint_t c=1; c<CountCounts; ++c)
     atomicAdd(counts+c, counts_local[c]);
+}
+
+template<uint_t BlockSize, uint_t CountCounts, typename T, T Unroll, typename TReal>
+__global__
+void dancoding_grid_1d_shared(T n, T A, uintll_t* counts, T offset, T end, T Aend, TReal stepsize)
+{
+  constexpr uint_t SharedRowPitch = BlockSize;
+  constexpr uint_t SharedCount = CountCounts * SharedRowPitch;
+  __shared__ T counts_shared[SharedCount];
+
+  T Aend_p = Aend-A*static_cast<T>(Unroll*stepsize);
+  for(uint_t i = threadIdx.x; i < SharedCount; i+=SharedRowPitch) {
+    counts_shared[i] = 0;
+  }
+  __syncthreads();
+
+  uint_t z[Unroll];
+  T v, w, i, k;
+//  TReal k;
+
+  for (i = blockIdx.x * BlockSize + threadIdx.x + offset;
+       i < end; 
+       i += BlockSize * gridDim.x)
+  {
+    w = A*i;
+    for(v=0, k=0; v<Aend_p; k+=Unroll)
+    {
+      #pragma unroll
+      for(T u=0; u<Unroll; ++u)
+      {
+        v=A*static_cast<T>((k+u)*stepsize);
+        z[u] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+        ++counts_shared[ z[u] ];
+      }
+    }
+    for(; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
+    {
+      z[0] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+      ++counts_shared[ z[0] ];
+    }
+  }
+  __syncthreads();
+  if(threadIdx.x<CountCounts) {
+    for(uint_t c=0; c<BlockSize; ++c)
+      atomicAdd(&counts[threadIdx.x], static_cast<uintll_t>(counts_shared[threadIdx.x*SharedRowPitch+c]));
+  }
 }
 
 template<uint_t CountCounts, typename T, typename TReal>
@@ -61,17 +107,45 @@ void dancoding_grid_2d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TRea
 template<uintll_t N>
 struct Caller
 {
+  using value_type = typename std::conditional< (N<=24), uint_t, uintll_t >::type;
+  static constexpr uint_t blocksize = std::is_same<value_type, uint_t>::value ? 128 : 64;
+  static constexpr value_type unroll_factor = std::is_same<value_type, uint_t>::value ? 16 : 32;
+
+  static constexpr cudaSharedMemConfig smem_config = std::is_same<value_type, uint_t>::value ? cudaSharedMemBankSizeFourByte : cudaSharedMemBankSizeEightByte;
+
   template<typename T>
-  void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, T stepsize, T stepsize2){
+  void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uint_t ccmax, T stepsize, T stepsize2){
     uintll_t Aend = A<<n;
     bool use32bit = Aend<(1ull<<32);
     if(gdim==1){
-      if(use32bit)
-        dancoding_grid_1d<ANCoding::traits::CountCounts<N>::value, uint_t >
-          <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize);
-      else   
-        dancoding_grid_1d<ANCoding::traits::CountCounts<N>::value, uintll_t >
-          <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize);
+      CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferShared) );
+      CHECK_ERROR( cudaDeviceSetSharedMemConfig(smem_config) );
+      if(ccmax<16)
+        dancoding_grid_1d_shared<blocksize, 16, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<24)
+        dancoding_grid_1d_shared<blocksize, 24, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<32)
+        dancoding_grid_1d_shared<blocksize, 32, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<48)
+        dancoding_grid_1d_shared<blocksize, 48, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<64)
+        dancoding_grid_1d_shared<blocksize, 64, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else
+        throw std::runtime_error("Not supported");
+/*
+      CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferL1) );
+      if(ccmax<16)
+        dancoding_grid_1d<16, value_type ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<24)
+        dancoding_grid_1d<24, value_type ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<32)
+        dancoding_grid_1d<32, value_type ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<48)
+        dancoding_grid_1d<48, value_type ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else if(ccmax<64)
+        dancoding_grid_1d<64, value_type ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+      else
+        throw std::runtime_error("Not supported");*/
     }else{
       if(use32bit)
         dancoding_grid_2d<ANCoding::traits::CountCounts<N>::value, uint_t >
@@ -87,6 +161,7 @@ struct Caller
 double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t iterations2, uintll_t A, int verbose, double* times, uintll_t* minb, uint128_t* mincb, int file_output, int nr_dev_max)
 {
   assert(A<(1ull<<n));
+
   int tmp_nr_dev;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -104,11 +179,19 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
     printf("Start AN-Coding Algorithm - %dD Grid with %llu x %llu points\n", gdim, iterations, gdim==2?iterations2:1);
     printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
   }
+  std::stringstream ss;
   // skip init time
   for(int dev=0; dev<nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
+    CHECK_ERROR( cudaDeviceSynchronize() );
+    cudaDeviceProp props;
+    CHECK_ERROR( cudaGetDeviceProperties(&props, dev) );
+    ss << "\"Device\", " << dev
+       << ", \"MemClock [MHz]\", " << props.memoryClockRate/1000
+       << ", \"GPUClock [MHz]\", " << props.clockRate/1000
+       << std::endl;
+
     CHECK_ERROR( cudaDeviceSynchronize() );
   }
 
@@ -150,7 +233,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
     offset = iterations2 / nr_dev * dev;
     end = iterations2 / nr_dev * (dev+1);
 
-    blocks.x = 8*numSMs;
+    blocks.x = 128*numSMs;
 
     // 3) Remainder of the slice
     if(verbose>1){
@@ -160,7 +243,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
     if(dev==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n, blocks, threads, gdim, A, dcounts[dev], offset, end, 1.0*count_messages/iterations, 1.0*count_messages/iterations2);
+    ANCoding::bridge<Caller>(n, blocks, threads, gdim, A, dcounts[dev], offset, end, count_counts, 1.0*count_messages/iterations, 1.0*count_messages/iterations2);
 
     CHECK_LAST("Kernel failed.");
 
@@ -223,7 +306,7 @@ double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t ite
   {
     char fname[256];
     sprintf(fname, "ancoding_grid%dd_%s", gdim, nr_dev==4 ? "4gpu" : "gpu");
-    process_result_ancoding_mc(counts,stats,n,A,iterations,file_output ? fname : nullptr);
+    process_result_ancoding_mc(counts,stats,n,A,iterations,file_output ? fname : nullptr, ss.str());
   }
 
   if(times!=NULL)

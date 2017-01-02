@@ -11,7 +11,7 @@ static const int OFFSET = 2;
 
 void printbits(uintll_t v, uintll_t n);
 
-static long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix, double* errors_abs=nullptr, double* errors_rel=nullptr);
+static long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix, double* errors_abs=nullptr, double* errors_rel=nullptr, std::string app = "");
 
 static void get_sol_hamming(uint128_t* sol, uint_t n, uint_t *h_out)
 {
@@ -168,7 +168,7 @@ double get_abs_error_AN(uintll_t A, uint_t n, uint128_t* tgt, int offset, double
   return max_err;
 }
 
-long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix, double* errors_abs, double* errors_rel)
+long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t h, const char* file_prefix, double* errors_abs, double* errors_rel, string app)
 {
   stringstream ss;
   char sep = ',';
@@ -213,7 +213,7 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
   if(errors_abs) ss<<"\"MaxAbsErr\""<<sep<<mxabs<<endl;
   if(errors_rel) ss<<"\"MaxRelErr\""<<sep<<mxrel<<endl;
   ss << endl;
-
+  ss << app;
   cout << ss.str();
 
   if(file_prefix)
@@ -253,23 +253,23 @@ void process_result_hamming_mc(uint128_t* counts, Statistics stats, uint_t n, ui
 }
 
 
-void process_result_ancoding(uint128_t* counts, Statistics stats, uint_t n, uint_t A, const char* file_prefix)
+void process_result_ancoding(uint128_t* counts, Statistics stats, uint_t n, uint_t A, const char* file_prefix, string app)
 {
   char tmp_file_prefix[192];
   long double total;
   uint_t h = static_cast<uint_t>( ceil(log(A)/log(2.0)) );
   if(file_prefix){
     sprintf(tmp_file_prefix, "%s_A%u", file_prefix, A);
-    total = process_result(counts,stats,n,h,tmp_file_prefix);
+    total = process_result(counts,stats,n,h,tmp_file_prefix,nullptr,nullptr,app);
   }else
-    total = process_result(counts,stats,n,h,nullptr);
+    total = process_result(counts,stats,n,h,nullptr,nullptr,nullptr,app);
 
   cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<< total << endl;
   cout << " A = ";
   printbits(A, n);
   cout << " = " << A << endl;
 }
-void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t A, uint_t iterations, const char* file_prefix)
+void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, uint_t A, uint_t iterations, const char* file_prefix, string app)
 {
   char tmp_file_prefix[192];
   double errors_abs[64];
@@ -280,9 +280,9 @@ void process_result_ancoding_mc(uint128_t* counts, Statistics stats, uint_t n, u
   uint_t h = static_cast<uint_t>( ceil(log2(A)) );
   if(file_prefix){
     sprintf(tmp_file_prefix, "%s_m%u_A%u", file_prefix, iterations, A);
-    total = process_result(counts,stats,n,h,tmp_file_prefix, errors_abs, errors_rel);
+    total = process_result(counts,stats,n,h,tmp_file_prefix, errors_abs, errors_rel, app);
   }else
-    total = process_result(counts,stats,n,h,nullptr, errors_abs, errors_rel);
+    total = process_result(counts,stats,n,h,nullptr, errors_abs, errors_rel, app);
   cout << endl << "Sum counts = " << setw(12)<<setprecision(12)<<total << " (with estimation factor 2^n*counts[d]/iterations)" << endl;
   cout << " A = ";
   printbits(A, n);

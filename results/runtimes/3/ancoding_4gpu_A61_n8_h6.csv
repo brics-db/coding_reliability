@@ -15,8 +15,12 @@
   14,             0,             0,           256
 
 
-0,"Kernel Runtime",0.000125824,s
-1,"Total Runtime",0.0028565,s
+0,"Kernel Runtime",0.00104275,s
+1,"Total Runtime",0.00263999,s
 
 "Total",65536
 
+"Device", 0, "MemClock [MHz]", 2505, "GPUClock [MHz]", 875
+"Device", 1, "MemClock [MHz]", 2505, "GPUClock [MHz]", 875
+"Device", 2, "MemClock [MHz]", 2505, "GPUClock [MHz]", 875
+"Device", 3, "MemClock [MHz]", 2505, "GPUClock [MHz]", 875

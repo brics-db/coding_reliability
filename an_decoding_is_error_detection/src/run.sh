@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{ time ./an_decoding_is_error_detection 1>results.out 2>results.err ; } >results.time &
+{ time ./an_decoding_is_error_detection - <an_decoding_is_error_detection.done 1>an_decoding_is_error_detection.out 2>an_decoding_is_error_detection.err ; } &>an_decoding_is_error_detection.time &
 
 grep -e BAD $(ls an_decoding_is_error_detection_*.out) | tee results.bad
 

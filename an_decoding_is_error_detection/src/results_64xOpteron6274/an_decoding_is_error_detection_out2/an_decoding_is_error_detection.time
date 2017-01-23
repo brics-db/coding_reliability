@@ -1,0 +1,5 @@
+./an_decoding_is_error_detection_eval.sh: Zeile 16: 56264 Beendet                 ./an_decoding_is_error_detection - < an_decoding_is_error_detection.done > an_decoding_is_error_detection.out 2> an_decoding_is_error_detection.err
+
+real	8721m2.490s
+user	558788m28.436s
+sys	1m58.532s

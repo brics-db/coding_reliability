@@ -1,0 +1,5 @@
+-bash: Zeile 46: 22199 Beendet                 ./an_decoding_is_error_detection > an_decoding_is_error_detection.out 2> an_decoding_is_error_detection.err
+
+real	13620m47.947s
+user	815612m21.496s
+sys	2m32.160s

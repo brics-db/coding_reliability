@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <iterator>
 
-#include "../stopwatch.hpp"
+#include "stopwatch.hpp"
 
 template<typename T>
 T

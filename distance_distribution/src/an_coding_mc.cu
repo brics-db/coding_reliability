@@ -35,7 +35,7 @@ __device__ int popc(uint_t v){ return __popc(v); }
 
 template<uintll_t ShardSize,uint_t CountCounts, typename T, typename RandGenType>
 __global__
-void dancoding_mc(T n, T A, uintll_t* counts, T offset, T end, RandGenType* state, T iterations, double p2n)
+void dancoding_mc(T n, T A, uintll_t* counts, T offset, T end, RandGenType* state, uint_t iterations, double p2n)
 {
   uint_t tid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x);
   T shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
@@ -62,21 +62,99 @@ void dancoding_mc(T n, T A, uintll_t* counts, T offset, T end, RandGenType* stat
     atomicAdd(counts+c, counts_local[c]);
   state[tid] = local_state;
 }
+
+
+template<uint_t BlockSize,uint_t CountCounts, typename T, T Unroll, typename RandGenType>
+__global__
+void dancoding_mc_shared(T n, T A, uintll_t* counts, T offset, T end, uint_t iterations, RandGenType* state, double p2n)
+{
+  constexpr uint_t SharedRowPitch = BlockSize;
+  constexpr uint_t SharedCount = CountCounts * SharedRowPitch;
+  __shared__ T counts_shared[SharedCount];
+
+  for(uint_t i = threadIdx.x; i < SharedCount; i+=SharedRowPitch) {
+    counts_shared[i] = 0;
+  }
+  __syncthreads();
+
+  uint_t z[Unroll];
+  T v, w, i;
+
+  RandGenType local_state = state[blockIdx.x * BlockSize + threadIdx.x];
+  uint_t it;
+  uint_t iterations_p = iterations<=Unroll ? 0 : iterations-Unroll;
+  for (i = blockIdx.x * BlockSize + threadIdx.x + offset;
+       i < end;
+       i += BlockSize * gridDim.x)
+  {
+    w = A*i;
+    for(it=0; it<iterations_p; it+=Unroll)
+    {
+      #pragma unroll
+      for(uint_t u=0; u<Unroll; ++u)
+      {
+        v = static_cast<T>( p2n * curand_uniform_double(&local_state));
+        v*=A;
+        z[u] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+        ++counts_shared[ z[u] ];
+      }
+    }
+    for(; it<iterations; ++it)
+    {
+      v = static_cast<T>( p2n * curand_uniform_double(&local_state));
+      v*=A;
+      z[0] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+      ++counts_shared[ z[0] ];
+    }
+  }
+  __syncthreads();
+  if(threadIdx.x<CountCounts) {
+    for(uint_t c=0; c<BlockSize; ++c)
+      atomicAdd(&counts[threadIdx.x], static_cast<uintll_t>(counts_shared[threadIdx.x*SharedRowPitch+c]));
+  }
+
+  state[blockIdx.x * BlockSize + threadIdx.x] = local_state;
+}
+
 /**
  * Caller for kernel 
  */
 template<uintll_t N>
 struct Caller
 {
+  using value_type = typename std::conditional< (N<=24), uint_t, uintll_t >::type;
+  static constexpr uint_t blocksize = std::is_same<value_type, uint_t>::value ? 128 : 64;
+  static constexpr value_type unroll_factor = std::is_same<value_type, uint_t>::value ? 16 : 32;
+
+  static constexpr cudaSharedMemConfig smem_config = std::is_same<value_type, uint_t>::value ? cudaSharedMemBankSizeFourByte : cudaSharedMemBankSizeEightByte;
+
   template<typename RandGenType>
-  void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, RandGenType* states, uintll_t iterations){
+  void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uint_t ccmax, RandGenType* states, uintll_t iterations){
     double p2n = pow(2.0,n);
-    if((A<<n)<(1ull<<32))
-      dancoding_mc<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-        <<< blocks, threads >>>((uint_t)n, (uint_t)A, counts, (uint_t)offset, (uint_t)end, states, (uint_t)iterations, p2n);
-   else
-      dancoding_mc<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
-        <<< blocks, threads >>>(n, A, counts, offset, end, states, iterations, p2n);
+
+    CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferShared) );
+    CHECK_ERROR( cudaDeviceSetSharedMemConfig(smem_config) );
+    if(ccmax<16)
+      dancoding_mc_shared<blocksize, 16, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<24)
+      dancoding_mc_shared<blocksize, 24, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<32)
+      dancoding_mc_shared<blocksize, 32, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<48)
+      dancoding_mc_shared<blocksize, 48, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<64)
+      dancoding_mc_shared<blocksize, 64, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else
+      throw std::runtime_error("Not supported");
+
+
+
+   //  if((A<<n)<(1ull<<32))
+   //    dancoding_mc<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+   //      <<< blocks, threads >>>((uint_t)n, (uint_t)A, counts, (uint_t)offset, (uint_t)end, states, (uint_t)iterations, p2n);
+   // else
+   //    dancoding_mc<ANCoding::traits::Shards<N>::value, ANCoding::traits::CountCounts<N>::value >
+   //      <<< blocks, threads >>>(n, A, counts, offset, end, states, iterations, p2n);
   }
 };
 
@@ -104,15 +182,13 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
   for(int dev=0; dev<nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
+    //CHECK_ERROR( cudaThreadSetCacheConfig(cudaFuncCachePreferL1) );
     CHECK_ERROR( cudaDeviceSynchronize() );
   }
 
   results_cpu.start(i_totaltime);
 
   const uintll_t count_messages = (1ull << n);
-  const uintll_t size_shards = ANCoding::getShardsSize(n);
-  const uintll_t count_shards = count_messages / size_shards;
   const uintll_t bitcount_A = ceil(log((double)A)/log(2.0));
   const uint_t count_counts = n + bitcount_A + 1;
 
@@ -127,7 +203,6 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
   for(int dev=0; dev<nr_dev; ++dev)
   {
     dim3 threads(128, 1, 1);
-    uint_t xblocks;
     uintll_t offset, end;
     dim3 blocks;
     RandGen<RAND_GEN> gen;
@@ -144,25 +219,29 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
     //end = 0;
     //    offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
     //    end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
-    offset = count_shards / nr_dev * dev;
-    end = count_shards / nr_dev * (dev+1);
+    offset = count_messages / nr_dev * dev;
+    end = count_messages / nr_dev * (dev+1);
 
-    xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
-    blocks.x= xblocks; blocks.y = xblocks;
+    //xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
+    //blocks.x= xblocks; blocks.y = xblocks;
+
+    int numSMs;
+    CHECK_ERROR( cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, dev) );
+    blocks.x = 128*numSMs;
 
     // 3) Remainder of the slice
     if(verbose>1){
       printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
-      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
+      printf("Dev %d: SMs: %d Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, numSMs, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((blocks.x-1) * (blocks.x) + (blocks.x-1)) + offset));
     }
 
     /* random generator stuff */
-    gen.init(blocks, threads, 1337+8137*xblocks*xblocks*threads.x*dev, 1, dev);
+    gen.init(blocks, threads, 1337+8137*(end-offset)*dev, 1, dev);
     //dim3 blocks( (count_shards / threads.x)/2, 2 );
     if(dev==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n, blocks, threads, A, dcounts[dev], offset, end, gen.devStates, iterations);
+    ANCoding::bridge<Caller>(n, blocks, threads, A, dcounts[dev], offset, end, count_counts, gen.devStates, iterations);
 
     CHECK_LAST("Kernel failed.");
 
@@ -193,7 +272,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
 //  counts[0] = 1ull<<n;
   for(uint_t i=0; i<count_counts; ++i)
   {
-    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,n)/iterations*hcounts[0][i]));
+    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0L,n)/iterations*hcounts[0][i]));
     //<<1;//only <<1 if sorted
   }
 

@@ -1,0 +1,32 @@
+#cat an_decoding_is_error_detection_out1/an_decoding_is_error_detection.time
+-bash: Zeile 46: 22199 Beendet                 ./an_decoding_is_error_detection > an_decoding_is_error_detection.out 2> an_decoding_is_error_detection.err
+
+real    13620m47.947s
+user    815612m21.496s
+sys     2m32.160s
+
+#cat an_decoding_is_error_detection_out2/an_decoding_is_error_detection.time
+./an_decoding_is_error_detection_eval.sh: Zeile 16: 56264 Beendet                 ./an_decoding_is_error_detection - < an_decoding_is_error_detection.done > an_decoding_is_error_detection.out 2> an_decoding_is_error_detection.err
+
+real    8721m2.490s
+user    558788m28.436s
+sys     1m58.532s
+
+#cat an_decoding_is_error_detection_out3/an_decoding_is_error_detection.time
+
+real    25314m2.808s
+user    1618608m24.496s
+sys     6m59.428s
+
+#total time
+#CPU hours
+#echo "scale=1; (815612.0*60.0 + 21.5 + 558788.0*60.0 + 28.4 + 1618608.0*60.0 + 24.5)/60.0 / 60.0" | bc
+49883.4
+
+#CPU hours per core (64 cores)
+#echo "scale=1; (815612.0*60.0 + 21.5 + 558788.0*60.0 + 28.4 + 1618608.0*60.0 + 24.5)/60.0 / 60.0 / 64.0" | bc
+779.4
+
+#CPU days per core (64 cores)
+#echo "scale=1; (815612.0*60.0 + 21.5 + 558788.0*60.0 + 28.4 + 1618608.0*60.0 + 24.5)/60.0 / 60.0 / 64.0 / 24.0" | bc
+32.4

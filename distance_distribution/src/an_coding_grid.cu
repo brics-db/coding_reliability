@@ -60,9 +60,7 @@ void dancoding_grid_1d_shared(T n, T A, uintll_t* counts, T offset, T end, T Aen
   }
   __syncthreads();
 
-  uint_t z[Unroll];
   T v, w, i, k;
-//  TReal k;
 
   for (i = blockIdx.x * BlockSize + threadIdx.x + offset;
        i < end; 
@@ -71,18 +69,17 @@ void dancoding_grid_1d_shared(T n, T A, uintll_t* counts, T offset, T end, T Aen
     w = A*i;
     for(v=0, k=0; v<Aend_p; k+=Unroll)
     {
-      #pragma unroll
-      for(T u=0; u<Unroll; ++u)
+      #pragma unroll (Unroll)
+      for(T u=0; u<Unroll; ++u, v=A*static_cast<T>((k+u)*stepsize))
       {
-        v=A*static_cast<T>((k+u)*stepsize);
-        z[u] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
-        ++counts_shared[ z[u] ];
+        uint_t z = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+        ++counts_shared[ z ];
       }
     }
     for(; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
     {
-      z[0] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
-      ++counts_shared[ z[0] ];
+      uint_t z = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+      ++counts_shared[ z ];
     }
   }
   __syncthreads();

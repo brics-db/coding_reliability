@@ -70,16 +70,15 @@ void dancoding_mc_shared(T n, T A, uintll_t* counts, T offset, T end, uint_t ite
 {
   constexpr uint_t SharedRowPitch = BlockSize;
   constexpr uint_t SharedCount = CountCounts * SharedRowPitch;
-  __shared__ T counts_shared[SharedCount];
+  __shared__ uint_t counts_shared[SharedCount];
 
   for(uint_t i = threadIdx.x; i < SharedCount; i+=SharedRowPitch) {
     counts_shared[i] = 0;
   }
   __syncthreads();
 
-  uint_t z[Unroll];
   T v, w, i;
-
+  uint_t max = 0;
   RandGenType local_state = state[blockIdx.x * BlockSize + threadIdx.x];
   uint_t it;
   uint_t iterations_p = iterations<=Unroll ? 0 : iterations-Unroll;
@@ -95,16 +94,24 @@ void dancoding_mc_shared(T n, T A, uintll_t* counts, T offset, T end, uint_t ite
       {
         v = static_cast<T>( p2n * curand_uniform_double(&local_state));
         v*=A;
-        z[u] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
-        ++counts_shared[ z[u] ];
+        uint_t z = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+        ++counts_shared[ z ];
+        if(counts_shared[z]>max) max = counts_shared[z];
+      }
+      if(max > ((1u<<31)-Unroll)<<1) { // prevent overflows by flushing intermediate results (2^32 - 2*Unroll)
+        for(uint_t c=0; c<CountCounts; ++c) {
+          atomicAdd(&counts[c], counts_shared[c*SharedRowPitch+threadIdx.x]);
+          max = 0;
+          counts_shared[c*SharedRowPitch+threadIdx.x] = 0;
+        }
       }
     }
     for(; it<iterations; ++it)
     {
       v = static_cast<T>( p2n * curand_uniform_double(&local_state));
       v*=A;
-      z[0] = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
-      ++counts_shared[ z[0] ];
+      uint_t z = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
+      ++counts_shared[ z ];
     }
   }
   __syncthreads();
@@ -122,28 +129,26 @@ void dancoding_mc_shared(T n, T A, uintll_t* counts, T offset, T end, uint_t ite
 template<uintll_t N>
 struct Caller
 {
-  using value_type = typename std::conditional< (N<=24), uint_t, uintll_t >::type;
-  static constexpr uint_t blocksize = std::is_same<value_type, uint_t>::value ? 128 : 64;
-  static constexpr value_type unroll_factor = std::is_same<value_type, uint_t>::value ? 16 : 32;
-
-  static constexpr cudaSharedMemConfig smem_config = std::is_same<value_type, uint_t>::value ? cudaSharedMemBankSizeFourByte : cudaSharedMemBankSizeEightByte;
 
   template<typename RandGenType>
   void operator()(uintll_t n, dim3 blocks, dim3 threads, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uint_t ccmax, RandGenType* states, uintll_t iterations){
+    static constexpr uint_t blocksize = 128;
+    static constexpr uint_t unroll_factor = 16;
     double p2n = pow(2.0,n);
 
     CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferShared) );
-    CHECK_ERROR( cudaDeviceSetSharedMemConfig(smem_config) );
-    if(ccmax<16)
-      dancoding_mc_shared<blocksize, 16, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
-    else if(ccmax<24)
-      dancoding_mc_shared<blocksize, 24, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
-    else if(ccmax<32)
-      dancoding_mc_shared<blocksize, 32, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
-    else if(ccmax<48)
-      dancoding_mc_shared<blocksize, 48, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
-    else if(ccmax<64)
-      dancoding_mc_shared<blocksize, 64, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    CHECK_ERROR( cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte) );
+
+    if(ccmax<=16)
+      dancoding_mc_shared<blocksize, 16, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<=24)
+      dancoding_mc_shared<blocksize, 24, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<=32)
+      dancoding_mc_shared<blocksize, 32, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<=48)
+      dancoding_mc_shared<blocksize, 48, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
+    else if(ccmax<=64)
+      dancoding_mc_shared<blocksize, 64, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, iterations, states, p2n);
     else
       throw std::runtime_error("Not supported");
 
@@ -160,6 +165,8 @@ struct Caller
 
 double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose, double* times, uintll_t* minb, uint128_t* mincb, int file_output, int nr_dev_max)
 {
+  if( ( A & (A-1) ) == 0 ) // A is power of two
+    A=1;
   int tmp_nr_dev;
   Statistics stats;
   TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
@@ -236,7 +243,7 @@ double run_ancoding_mc(uintll_t n, uintll_t iterations, uintll_t A, int verbose,
     }
 
     /* random generator stuff */
-    gen.init(blocks, threads, 1337+8137*(end-offset)*dev, 1, dev);
+    gen.init(blocks, threads, 16384+8137*(end-offset)*dev, 1, dev);
     //dim3 blocks( (count_shards / threads.x)/2, 2 );
     if(dev==0)
       results_gpu.start(i_runtime);

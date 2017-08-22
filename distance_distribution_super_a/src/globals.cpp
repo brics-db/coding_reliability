@@ -56,14 +56,15 @@ void process_result(stringstream& ss,
   long double base2;
   long double base;
   double mxabs=0,mxrel=0;
+  int cnts = flags.n + h + 1;
 
   if(id==0) {
-    ss << "id, k, A, h, A_2, m_1, m_2";
-    for(int i=0; i<50; ++i)
+    ss << "id, k, A, h, A_2, m_1, m_2, hlen";
+    for(int i=1; i<cnts; ++i)
       ss << ", p_" << i;
-    for(int i=0; i<50; ++i)
+    for(int i=1; i<cnts; ++i)
       ss << ", hist_" << i;
-    ss << ", t_kernel, t, sum, minb, mincb\n";
+    ss << ", t_kernel, t, sum, minb, mincb, superA, minb2, mincb2, superA2\n";
   }
 
 
@@ -75,10 +76,11 @@ void process_result(stringstream& ss,
      << sep << printbits(A, n).str()
      << sep << flags.mc_iterations
      << sep << flags.mc_iterations_2
+     << sep << cnts
     ;
   // density + histogram
 
-  for(uint_t i=0; i<n+h+1; ++i)
+  for(uint_t i=1; i<cnts; ++i)
   {
     base2 = binomialCoeff( static_cast<long double>(n+h), static_cast<long double>(i) );
     base = base1 * base2;
@@ -86,19 +88,13 @@ void process_result(stringstream& ss,
 
     ss << sep << prob;
   }
-  for (uint_t i=n+h+1; i<COUNTS_MAX_WIDTH; i++) {
-    ss << sep << "NA";
-  }
 
-  for(uint_t i=0; i<n+h+1; ++i)
+  for(uint_t i=1; i<cnts; ++i)
   {
     if(n>=32 && counts[i]>(uint128_t(1)<<64))
       ss << sep << setprecision(12) << static_cast<long double>(counts[i]);
     else
       ss << sep << static_cast<uintll_t>(counts[i]);
-  }
-  for (uint_t i=n+h+1; i<COUNTS_MAX_WIDTH; i++) {
-    ss << sep << "NA";
   }
 
   for(int i=0; i<2; ++i)

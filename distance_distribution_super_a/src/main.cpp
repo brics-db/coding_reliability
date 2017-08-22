@@ -143,11 +143,10 @@ void get_lowest_prob(uint128_t* counts, size_t count_counts, uint128_t& mincb, u
 double ancoding_search_super_A(std::stringstream& ss)
 {
   uint128_t mincb = 0, mxmincb=static_cast<uint128_t>(-1), mxmincb2=static_cast<uint128_t>(-1);
-  uintll_t minb = 0, mxminb=0, mxminb2=0, A2=0;
+  uintll_t minb = 0, mxminb=0, mxminb2=0, superA = 0, superA2=0;
   uintll_t n = g_flags.n;
   uintll_t A = g_flags.search_start;
   uintll_t A_end = g_flags.search_end;
-  uintll_t superA = 0;
   double times[2] = {0};
   double ttimes = 0;
   uint128_t counts[COUNTS_MAX_WIDTH] = {0};
@@ -166,22 +165,29 @@ double ancoding_search_super_A(std::stringstream& ss)
 
     if(mxminb<minb || (mxminb==minb && mxmincb>mincb))
     {
-      if(mxminb!=minb)
-      {
-        mxminb2=mxminb;
-        mxmincb2=mxmincb;
-        A2 = superA;
-      }
       mxminb=minb;
       mxmincb=mincb;
       superA = A;
     }
+    if(mxminb2<minb || (mxminb2==minb && mxmincb2>mincb))
+    {
+      mxminb2=minb;
+      mxmincb2=mincb;
+      superA2 = A;
+    }
     ttimes += times[1];
 
     process_result(ss, A, h, g_flags, times, counts);
-    ss << sep << minb << sep << mincb;
-
+    ss << sep << mxminb << sep << mxmincb << sep << superA
+       << sep << mxminb2 << sep << mxmincb2 << sep << superA2;
     ss << "\n";
+
+    if( ((A+1) & ~A) == (A+1) ) // is A+1 power-of-two? (A+2 will be in a new ²-class)
+    {
+      mxmincb2=static_cast<uint128_t>(-1);
+      mxminb2=0;
+      superA2=0;
+    }
   }
   return ttimes;
 }
@@ -204,7 +210,7 @@ int main(int argc, char** argv)
 
   if(g_flags.search_super_A)
   {
-    sprintf(fname,"%s_n%u_a%u-%u.csv",g_flags.file_prefix, g_flags.n, g_flags.search_start, g_flags.search_end );
+    sprintf(fname,"%s_k%u_a%u-%u.csv",g_flags.file_prefix, g_flags.n, g_flags.search_start, g_flags.search_end );
     ttimes = ancoding_search_super_A(ss);
   }
   else if(g_flags.with_grid)
@@ -212,7 +218,7 @@ int main(int argc, char** argv)
     uint128_t counts[COUNTS_MAX_WIDTH] = {0};
     double times[2] = {0};
     uint_t h = ceil(log(g_flags.A)/log(2.0));
-    sprintf(fname,"%s_n%u_h%u_a%u_g%u.csv",g_flags.file_prefix, g_flags.n, h, g_flags.A, g_flags.with_grid );
+    sprintf(fname,"%s_k%u_h%u_a%u_g%u.csv",g_flags.file_prefix, g_flags.n, h, g_flags.A, g_flags.with_grid );
     run_ancoding_grid(g_flags.A, h, g_flags, times, counts);
     process_result(ss, g_flags.A, h, g_flags, times, counts);
     ttimes = times[1];
@@ -222,7 +228,7 @@ int main(int argc, char** argv)
     uint128_t counts[COUNTS_MAX_WIDTH] = {0};
     double times[2] = {0};
     uint_t h = ceil(log(g_flags.A)/log(2.0));
-    sprintf(fname,"%s_n%u_h%u_a%u.csv",g_flags.file_prefix, g_flags.n, h, g_flags.A );
+    sprintf(fname,"%s_k%u_h%u_a%u.csv",g_flags.file_prefix, g_flags.n, h, g_flags.A );
     run_ancoding(g_flags.A, h, g_flags, times, counts);
     process_result(ss, g_flags.A, h, g_flags, times, counts);
     ttimes = times[1];

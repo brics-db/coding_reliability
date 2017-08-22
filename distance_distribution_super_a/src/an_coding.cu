@@ -28,8 +28,6 @@
 #include <ostream>
 using namespace std;
 
-// 13*0.875*32*64/8 = 2912 GB/s (K80 Peak SMEM Bandwidth) (numSMs*gpufreq*banks*width)
-// 13*0.784*32*64/8 = 2609 GB/s (K20 **)
 
 template<uint_t BlockSize, uint_t CountCounts, typename T, T Unroll>
 __global__

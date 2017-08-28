@@ -52,7 +52,7 @@ void dancoding_grid_1d_shared(T n, T A, uintll_t* counts, T offset, T end, T Aen
 {
   constexpr uint_t SharedRowPitch = BlockSize;
   constexpr uint_t SharedCount = CountCounts * SharedRowPitch;
-  __shared__ T counts_shared[SharedCount];
+  __shared__ uint_t counts_shared[SharedCount];
 
   T Aend_p = Aend-A*static_cast<T>(Unroll*stepsize);
   for(uint_t i = threadIdx.x; i < SharedCount; i+=SharedRowPitch) {
@@ -61,7 +61,7 @@ void dancoding_grid_1d_shared(T n, T A, uintll_t* counts, T offset, T end, T Aen
   __syncthreads();
 
   T v, w, i, k;
-
+  uint_t max = 0;
   for (i = blockIdx.x * BlockSize + threadIdx.x + offset;
        i < end; 
        i += BlockSize * gridDim.x)
@@ -74,6 +74,14 @@ void dancoding_grid_1d_shared(T n, T A, uintll_t* counts, T offset, T end, T Aen
       {
         uint_t z = ANCoding::dbitcount( w^v )*SharedRowPitch + threadIdx.x;
         ++counts_shared[ z ];
+        if(counts_shared[z]>max) max = counts_shared[z];
+      }
+      if(max > ((1u<<31)-Unroll)<<1) { // prevent overflows by flushing intermediate results (2^32 - 2*Unroll)
+        for(uint_t c=0; c<CountCounts; ++c) {
+          atomicAdd(&counts[c], counts_shared[c*SharedRowPitch+threadIdx.x]);
+          max = 0;
+          counts_shared[c*SharedRowPitch+threadIdx.x] = 0;
+        }
       }
     }
     for(; v<Aend; ++k, v=A*static_cast<T>(k*stepsize))
@@ -117,51 +125,47 @@ void dancoding_grid_2d(T n, T A, uintll_t* counts, T offset, T end, T Aend, TRea
 template<uintll_t N>
 struct Caller
 {
-  using value_type = typename std::conditional< (N<=24), uint_t, uintll_t >::type;
-  static constexpr uint_t blocksize = std::is_same<value_type, uint_t>::value ? 128 : 64;
-  static constexpr value_type unroll_factor = std::is_same<value_type, uint_t>::value ? 16 : 32;
-
-  static constexpr cudaSharedMemConfig smem_config = std::is_same<value_type, uint_t>::value ? cudaSharedMemBankSizeFourByte : cudaSharedMemBankSizeEightByte;
-
   template<typename T>
   void operator()(uintll_t n, dim3 blocks, dim3 threads, int gdim, uintll_t A, uintll_t* counts, uintll_t offset, uintll_t end, uint_t ccmax, T stepsize, T stepsize2, uint_t iterations){
+    static constexpr uint_t blocksize = 128;
+    static constexpr uint_t unroll_factor = 16;
     uintll_t Aend = A<<n;
-    bool use32bit = Aend<(1ull<<32);
+
     if(gdim==1){
       assert(iterations>=3);
       CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferShared) );
-      CHECK_ERROR( cudaDeviceSetSharedMemConfig(smem_config) );
+      CHECK_ERROR( cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte) );
 
       if(iterations<=16) {
-        if(ccmax<16)
-          dancoding_grid_1d_shared<blocksize, 16, value_type, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<24)
-          dancoding_grid_1d_shared<blocksize, 24, value_type, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<32)
-          dancoding_grid_1d_shared<blocksize, 32, value_type, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<48)
-          dancoding_grid_1d_shared<blocksize, 48, value_type, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<64)
-          dancoding_grid_1d_shared<blocksize, 64, value_type, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        if(ccmax<=16)
+          dancoding_grid_1d_shared<blocksize, 16, uint_t, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=24)
+          dancoding_grid_1d_shared<blocksize, 24, uint_t, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=32)
+          dancoding_grid_1d_shared<blocksize, 32, uint_t, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=48)
+          dancoding_grid_1d_shared<blocksize, 48, uintll_t, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=64)
+          dancoding_grid_1d_shared<blocksize, 64, uintll_t, 3 ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
         else
           throw std::runtime_error("Not supported");
       } else {
-        if(ccmax<16)
-          dancoding_grid_1d_shared<blocksize, 16, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<24)
-          dancoding_grid_1d_shared<blocksize, 24, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<32)
-          dancoding_grid_1d_shared<blocksize, 32, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<48)
-          dancoding_grid_1d_shared<blocksize, 48, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
-        else if(ccmax<64)
-          dancoding_grid_1d_shared<blocksize, 64, value_type, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        if(ccmax<=16)
+          dancoding_grid_1d_shared<blocksize, 16, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=24)
+          dancoding_grid_1d_shared<blocksize, 24, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=32)
+          dancoding_grid_1d_shared<blocksize, 32, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=48)
+          dancoding_grid_1d_shared<blocksize, 48, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
+        else if(ccmax<=64)
+          dancoding_grid_1d_shared<blocksize, 64, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend, stepsize);
         else
           throw std::runtime_error("Not supported");
       }
 
     }else{
-      if(use32bit)
+      if(Aend<(1ull<<32))
         dancoding_grid_2d<ANCoding::traits::CountCounts<N>::value, uint_t >
           <<< blocks, threads >>>(n, A, counts, offset, end, Aend, stepsize, stepsize2);
       else
@@ -174,6 +178,8 @@ struct Caller
 
 double run_ancoding_grid(int gdim, uintll_t n, uintll_t iterations, uintll_t iterations2, uintll_t A, int verbose, double* times, uintll_t* minb, uint128_t* mincb, int file_output, int nr_dev_max)
 {
+  if( ( A & (A-1) ) == 0 ) // A is power of two
+    A=1;
   assert(A<(1ull<<n));
 
   int tmp_nr_dev;

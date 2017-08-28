@@ -188,7 +188,7 @@ long double process_result(uint128_t* counts, Statistics stats, uint_t n, uint_t
   char sep = ',';
   // sum
   long double total = 0;
-  for (uint_t i = 0; i < n+h; ++i) {
+  for (uint_t i = 0; i < n+h+1; ++i) {
     total += static_cast<long double>(counts[i]);
   }
   long double prob;

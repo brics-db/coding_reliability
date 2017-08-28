@@ -31,11 +31,11 @@
   30,             0,             0,  1.677722e+07,            0,            0
 
 
-0,"Kernel Runtime",0.03083517,s
-1,"Total Runtime",0.03171065,s
+0,"Kernel Runtime",0.02267811,s
+1,"Total Runtime",0.02363922,s
 
 "Total",2.81475e+14
 "MaxAbsErr",0.001067122
 "MaxRelErr",0.06733906
 
-"Device", 0, "MemClock [MHz]", 2505, "GPUClock [MHz]", 562
+"Device", 0, "MemClock [MHz]", 2505, "GPUClock [MHz]", 823

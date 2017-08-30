@@ -1,4 +1,3 @@
-
 library(ggplot2)
 library(shiny)
 library(readr)
@@ -105,7 +104,7 @@ get_superAs_table <- function(html=FALSE) {
         for(j in 1:ncol(tab)) {
             v <- strsplit(toString(tab[i,j]), ", ")
             if(html)
-                tab[i,j]<-paste0("<strong>",v[[1]][1],"</strong><em> (",v[[1]][2],")</em>")
+                tab[i,j]<-paste0("<strong>",v[[1]][1],"</strong> <em>(",v[[1]][2],")</em>")
             else
                 tab[i,j]<-as.numeric(v[[1]][1])
         }
@@ -320,12 +319,15 @@ server <- function(input, output, session) {
         tables <- get_tables(df_data, params)
 
         return(tables$reduced)
-    }, style="bootstrap"))
+    }))
 
     output$sTableA <- DT::renderDataTable(DT::datatable({superA$table_html},
-                                                        style="bootstrap",
                                                         escape=F,
-                                                        selection = list(target = 'cell')))
+                                                        selection = list(target = 'cell'),
+                                                        options = list(
+                                                            lengthMenu = list(c(5, 10, 20, -1), c('5', '10', '20', 'All')),
+                                                            pageLength = 5
+                                                        )))
     
     output$sPlot <- renderPlot({
 
@@ -360,35 +362,36 @@ ui <- fluidPage(
                "label {font-size: 12px;}",
                "p {font-weight: bold;}",
                "h3 {margin-top: 0px;}",
-               ".checkbox {vertical-align: top; margin-top: 0px; padding-top: 0px;}"
+               ".checkbox {vertical-align: top; margin-top: 0px; padding-top: 0px;}",
+               "table.dataTable.hover tbody tr td:hover, table.dataTable.display tbody tr td:hover {background-color: #ffff99 !important; cursor:pointer;}"
                ),
 
     h1("AN-Coding Analysis Tool"),
     p("Compare for different integer values A and data word widths k the silent data corruption probabilities. Get ",
       a(href="https://github.com/tuddbresilience/coding_reliability", "source code on github"),
-      " (/distance_distribution_super_a/rshiny)."),
+      " (/distance_distribution_super_a/)."),
     p("Values have been computed for k={4,...,32} and A={3,5,...,65535}, where the bigger problems have been approximated by a grid sampling method."),
     hr(),
 
     wellPanel(
         h3("Parameters"),
         fluidRow(
-            column(2, textInput("sK", "data word width (k in {4,5,...,32})", "4,5")),
-            column(2, textInput("sA", "A in {3,5,...,65535}", "5,9")),
-            column(2, textInput("sTitle", "Plot Title", ""))
+            column(3, textInput("sK", "data word width k in {4,5,...,32}", "4,5")),
+            column(3, textInput("sA", "A in {3,5,...,65535}", "5,9")),
+            column(3, textInput("sTitle", "Plot Title", ""))
         )
     ),
     wellPanel(
-        DT::dataTableOutput("sTableA"),
+        div(DT::dataTableOutput("sTableA"), style = "font-size: 75%;"),
         br(),
         wellPanel(
             h3("Plot Options"),
             fluidRow(
                 column(3, selectInput("sPlotType", "Plot type", c("probability","counts"), selected="probability")),
-                column(1, selectInput("sLogx", "Log-X", c("-","2","10"), selected="-")),
-                column(1, selectInput("sLogy", "Log-Y", c("-","2","10"), selected="-")),
-                column(1, textInput("sXlimit", "x-range", "0,0")),
-                column(1, checkboxInput("sUsepoints", "Draw Points"))
+                column(2, selectInput("sLogx", "Log-X", c("-","2","10"), selected="-")),
+                column(2, selectInput("sLogy", "Log-Y", c("-","2","10"), selected="-")),
+                column(2, textInput("sXlimit", "x-range", "0,0")),
+                column(2, checkboxInput("sUsepoints", "Draw Points"))
                 
             )
         ),

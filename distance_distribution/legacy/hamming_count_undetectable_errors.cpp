@@ -544,7 +544,7 @@ struct SIMD<__m256i, uint64_t> {
 
     static __m256i popcount(
             __m256i a) {
-        return _mm256_set_epi64x(__builtin_popcountll(_mm_extract_epi64(a, 3)), __builtin_popcountll(_mm_extract_epi64(a, 2)), __builtin_popcountll(_mm_extract_epi64(a, 1)), __builtin_popcountll(_mm_extract_epi64(a, 0)));
+        return _mm256_set_epi64x(__builtin_popcountll(_mm256_extract_epi64(a, 3)), __builtin_popcountll(_mm256_extract_epi64(a, 2)), __builtin_popcountll(_mm256_extract_epi64(a, 1)), __builtin_popcountll(_mm256_extract_epi64(a, 0)));
     }
 };
 #endif

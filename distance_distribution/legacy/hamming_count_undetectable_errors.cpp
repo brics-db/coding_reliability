@@ -174,6 +174,28 @@ struct SIMD<__m128i, uint8_t> {
         return _mm_add_epi8(cnt_lo, cnt_hi);
     }
 
+    static __m128i hamming(
+            __m128i data) {
+        auto pattern1 = _mm_set1_epi8(static_cast<int8_t>(0x5B));
+        auto pattern2 = _mm_set1_epi8(static_cast<int8_t>(0x6D));
+        auto pattern3 = _mm_set1_epi8(static_cast<int8_t>(0x8E));
+        auto pattern4 = _mm_set1_epi8(static_cast<int8_t>(0xF0));
+        auto mask = _mm_set1_epi8(static_cast<int8_t>(0x1));
+        uint8_t shift = 1;
+        auto tmp2 = _mm_and_si128(popcount(_mm_and_si128(data, pattern1)), mask);
+        auto codebits = tmp2;
+        auto tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern2)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern3)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, ++shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern4)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, ++shift));
+        return codebits;
+    }
+
     static __m128i ext_hamming(
             __m128i data) {
         auto pattern1 = _mm_set1_epi8(static_cast<int8_t>(0x5B));
@@ -225,6 +247,32 @@ struct SIMD<__m128i, uint16_t> {
         auto shuffle = _mm_set_epi32(0xFF0FFF0D, 0xFF0BFF09, 0xFF07FF05, 0xFF03FF01);
         auto popcount8 = SIMD<__m128i, uint8_t>::popcount(a);
         return _mm_shuffle_epi8(_mm_mullo_epi16(popcount8, mask), shuffle);
+    }
+
+    static __m128i hamming(
+            __m128i data) {
+        auto pattern1 = _mm_set1_epi16(static_cast<int16_t>(0xAD5B));
+        auto pattern2 = _mm_set1_epi16(static_cast<int16_t>(0x366D));
+        auto pattern3 = _mm_set1_epi16(static_cast<int16_t>(0xC78E));
+        auto pattern4 = _mm_set1_epi16(static_cast<int16_t>(0x07F0));
+        auto pattern5 = _mm_set1_epi16(static_cast<int16_t>(0xF800));
+        auto mask = _mm_set1_epi16(static_cast<int16_t>(0x1));
+        uint8_t shift = 1;
+        auto tmp2 = _mm_and_si128(popcount(_mm_and_si128(data, pattern1)), mask);
+        auto codebits = tmp2;
+        auto tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern2)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern3)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, ++shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern4)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, ++shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern5)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi16(tmp1, ++shift));
+        return codebits;
     }
 
     static __m128i ext_hamming(
@@ -280,6 +328,36 @@ struct SIMD<__m128i, uint32_t> {
         auto shuffle = _mm_set_epi32(0xFFFFFF0F, 0xFFFFFF0B, 0xFFFFFF07, 0xFFFFFF03);
         auto popcount8 = SIMD<__m128i, uint8_t>::popcount(a);
         return _mm_shuffle_epi8(_mm_mullo_epi32(popcount8, mask), shuffle);
+    }
+
+    static __m128i hamming(
+            __m128i data) {
+        auto pattern1 = _mm_set1_epi32(0x56AAAD5B);
+        auto pattern2 = _mm_set1_epi32(0x9B33366D);
+        auto pattern3 = _mm_set1_epi32(0xE3C3C78E);
+        auto pattern4 = _mm_set1_epi32(0x03FC07F0);
+        auto pattern5 = _mm_set1_epi32(0x03FFF800);
+        auto pattern6 = _mm_set1_epi32(0xFC000000);
+        auto mask = _mm_set1_epi32(0x1);
+        uint8_t shift = 1;
+        __m128i tmp2 = _mm_and_si128(popcount(_mm_and_si128(data, pattern1)), mask);
+        __m128i codebits = tmp2;
+        __m128i tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern2)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi32(tmp1, shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern3)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi32(tmp1, ++shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern4)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi32(tmp1, ++shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern5)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi32(tmp1, ++shift));
+        tmp1 = _mm_and_si128(popcount(_mm_and_si128(data, pattern6)), mask);
+        tmp2 = _mm_xor_si128(tmp2, tmp1);
+        codebits = _mm_or_si128(codebits, _mm_slli_epi32(tmp1, ++shift));
+        return codebits;
     }
 
     static __m128i ext_hamming(
@@ -378,6 +456,28 @@ struct SIMD<__m256i, uint8_t> {
         return _mm256_add_epi8(cnt_lo, cnt_hi);
     }
 
+    static __m256i hamming(
+            __m256i data) {
+        auto pattern1 = _mm256_set1_epi8(static_cast<int8_t>(0x5B));
+        auto pattern2 = _mm256_set1_epi8(static_cast<int8_t>(0x6D));
+        auto pattern3 = _mm256_set1_epi8(static_cast<int8_t>(0x8E));
+        auto pattern4 = _mm256_set1_epi8(static_cast<int8_t>(0xF0));
+        auto mask = _mm256_set1_epi8(static_cast<int8_t>(0x1));
+        uint8_t shift = 1;
+        auto tmp2 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern1)), mask);
+        auto codebits = tmp2;
+        auto tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern2)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern3)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern4)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
+        return codebits;
+    }
+
     static __m256i ext_hamming(
             __m256i data) {
         auto pattern1 = _mm256_set1_epi8(static_cast<int8_t>(0x5B));
@@ -431,6 +531,32 @@ struct SIMD<__m256i, uint16_t> {
         auto shuffle = _mm256_set_epi64x(0xFF0FFF0DFF0BFF09, 0xFF07FF05FF03FF01, 0xFF0FFF0DFF0BFF09, 0xFF07FF05FF03FF01);
         auto popcount8 = SIMD<__m256i, uint8_t>::popcount(a);
         return _mm256_shuffle_epi8(_mm256_mullo_epi16(popcount8, mask), shuffle);
+    }
+
+    static __m256i hamming(
+            __m256i data) {
+        auto pattern1 = _mm256_set1_epi16(static_cast<int16_t>(0xAD5B));
+        auto pattern2 = _mm256_set1_epi16(static_cast<int16_t>(0x366D));
+        auto pattern3 = _mm256_set1_epi16(static_cast<int16_t>(0xC78E));
+        auto pattern4 = _mm256_set1_epi16(static_cast<int16_t>(0x07F0));
+        auto pattern5 = _mm256_set1_epi16(static_cast<int16_t>(0xF800));
+        auto mask = _mm256_set1_epi8(static_cast<int8_t>(0x1));
+        uint8_t shift = 1;
+        auto tmp2 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern1)), mask);
+        auto codebits = tmp2;
+        auto tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern2)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern3)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern4)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern5)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
+        return codebits;
     }
 
     static __m256i ext_hamming(
@@ -488,6 +614,36 @@ struct SIMD<__m256i, uint32_t> {
         auto shuffle = _mm256_set_epi64x(0xFFFFFF0FFFFFFF0B, 0xFFFFFF07FFFFFF03, 0xFFFFFF0FFFFFFF0B, 0xFFFFFF07FFFFFF03);
         auto popcount8 = SIMD<__m256i, uint8_t>::popcount(a);
         return _mm256_shuffle_epi8(_mm256_mullo_epi32(popcount8, mask), shuffle);
+    }
+
+    static __m256i hamming(
+            __m256i data) {
+        auto pattern1 = _mm256_set1_epi32(0x56AAAD5B);
+        auto pattern2 = _mm256_set1_epi32(0x9B33366D);
+        auto pattern3 = _mm256_set1_epi32(0xE3C3C78E);
+        auto pattern4 = _mm256_set1_epi32(0x03FC07F0);
+        auto pattern5 = _mm256_set1_epi32(0x03FFF800);
+        auto pattern6 = _mm256_set1_epi32(0xFC000000);
+        auto mask = _mm256_set1_epi8(static_cast<int8_t>(0x1));
+        uint8_t shift = 1;
+        auto tmp2 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern1)), mask);
+        auto codebits = tmp2;
+        auto tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern2)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi32(tmp1, shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern3)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi32(tmp1, ++shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern4)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi32(tmp1, ++shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern5)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi32(tmp1, ++shift));
+        tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern6)), mask);
+        tmp2 = _mm256_xor_si256(tmp2, tmp1);
+        codebits = _mm256_or_si256(codebits, _mm256_slli_epi32(tmp1, ++shift));
+        return codebits;
     }
 
     static __m256i ext_hamming(
@@ -591,6 +747,16 @@ struct ExtHamming08 {
     static inline size_t compute(
             const size_t value) {
         size_t hamming = 0;
+        hamming |= (Scalar<uint8_t>::popcount(value & 0x5B) & 0x1);
+        hamming |= (Scalar<uint8_t>::popcount(value & 0x6D) & 0x1) << 1;
+        hamming |= (Scalar<uint8_t>::popcount(value & 0x8E) & 0x1) << 2;
+        hamming |= (Scalar<uint8_t>::popcount(value & 0xF0) & 0x1) << 3;
+        return (value << 5) | hamming;
+    }
+
+    static inline size_t compute_ext(
+            const size_t value) {
+        size_t hamming = 0;
         hamming |= (Scalar<uint8_t>::popcount(value & 0x5B) & 0x1) << 1;
         hamming |= (Scalar<uint8_t>::popcount(value & 0x6D) & 0x1) << 2;
         hamming |= (Scalar<uint8_t>::popcount(value & 0x8E) & 0x1) << 3;
@@ -608,6 +774,17 @@ struct ExtHamming16 {
     static const constexpr size_t BITCNT_HAMMING = 6;
 
     static inline size_t compute(
+            const size_t value) {
+        size_t hamming = 0;
+        hamming |= (Scalar<uint16_t>::popcount(value & 0xAD5B) & 0x1);
+        hamming |= (Scalar<uint16_t>::popcount(value & 0x366D) & 0x1) << 1;
+        hamming |= (Scalar<uint16_t>::popcount(value & 0xC78E) & 0x1) << 2;
+        hamming |= (Scalar<uint16_t>::popcount(value & 0x07F0) & 0x1) << 3;
+        hamming |= (Scalar<uint16_t>::popcount(value & 0xF800) & 0x1) << 4;
+        return (value << 6) | hamming;
+    }
+
+    static inline size_t compute_ext(
             const size_t value) {
         size_t hamming = 0;
         hamming |= (Scalar<uint16_t>::popcount(value & 0xAD5B) & 0x1) << 1;
@@ -630,6 +807,17 @@ struct ExtHamming24 {
     static inline size_t compute(
             const size_t value) {
         size_t hamming = 0;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0xAAAD5B) & 0x1);
+        hamming |= (Scalar<uint32_t>::popcount(value & 0x33366D) & 0x1) << 1;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0xC3C78E) & 0x1) << 2;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0xFC07F0) & 0x1) << 3;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0xFFF800) & 0x1) << 4;
+        return (value << 6) | hamming;
+    }
+
+    static inline size_t compute_ext(
+            const size_t value) {
+        size_t hamming = 0;
         hamming |= (Scalar<uint32_t>::popcount(value & 0xAAAD5B) & 0x1) << 1;
         hamming |= (Scalar<uint32_t>::popcount(value & 0x33366D) & 0x1) << 2;
         hamming |= (Scalar<uint32_t>::popcount(value & 0xC3C78E) & 0x1) << 3;
@@ -648,6 +836,18 @@ struct ExtHamming32 {
     static const constexpr size_t BITCNT_HAMMING = 7;
 
     static inline size_t compute(
+            const size_t value) {
+        size_t hamming = 0;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0x56AAAD5B) & 0x1);
+        hamming |= (Scalar<uint32_t>::popcount(value & 0x9B33366D) & 0x1) << 1;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0xE3C3C78E) & 0x1) << 2;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0x03FC07F0) & 0x1) << 3;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0x03FFF800) & 0x1) << 4;
+        hamming |= (Scalar<uint32_t>::popcount(value & 0xFC000000) & 0x1) << 5;
+        return (value << 7) | hamming;
+    }
+
+    static inline size_t compute_ext(
             const size_t value) {
         size_t hamming = 0;
         hamming |= (Scalar<uint32_t>::popcount(value & 0x56AAAD5B) & 0x1) << 1;
@@ -728,23 +928,25 @@ void countHammingUndetectableErrors() {
             size_t x = bucket_size * thread;
             const size_t max = x + bucket_size + (thread == (num_threads - 1) ? remaining : 0); // the last thread does the few additional remaining code words
 
-// #ifdef __AVX2__
-//             const constexpr size_t values_per_mm256 = sizeof(__m256i) / sizeof(popcount_t);
-//             auto mm256 = SIMD<__m256i, popcount_t>::set_inc(x, 1);
-//             auto mm256inc = SIMD<__m256i, popcount_t>::set1(values_per_mm256);
-//
-//             for (; x <= (max - values_per_mm256); x += values_per_mm256) {
-//                 auto popcount = SIMD<__m256i, popcount_t>::popcount(mm256);
-//                 auto hamming = SIMD<__m256i, popcount_t>::ext_hamming(mm256);
-//                 auto hammingPopcount = SIMD<__m256i, popcount_t>::popcount(hamming);
-//                 popcount = SIMD<__m256i, popcount_t>::add(popcount, hammingPopcount);
-//                 popcount_t * pPopcount = reinterpret_cast<popcount_t*>(&popcount);
-//                 for (size_t i = 0; i < values_per_mm256; ++i) {
-//                     counts_local[pPopcount[i]]++;
-//                 }
-//                 mm256 = SIMD<__m256i, popcount_t>::add(mm256, mm256inc);
-//             }
-// #endif /* __AVX2__ */
+#ifdef __AVX2__
+            const constexpr size_t values_per_mm256 = sizeof(__m256i) / sizeof(popcount_t);
+            auto mm256 = SIMD<__m256i, popcount_t>::set_inc(x, 1);
+            auto mm256inc = SIMD<__m256i, popcount_t>::set1(values_per_mm256);
+
+            if (max > values_per_mm256) {
+                for (; x <= (max - values_per_mm256); x += values_per_mm256) {
+                    auto popcount = SIMD<__m256i, popcount_t>::popcount(mm256);
+                    auto hamming = SIMD<__m256i, popcount_t>::ext_hamming(mm256);
+                    auto hammingPopcount = SIMD<__m256i, popcount_t>::popcount(hamming);
+                    popcount = SIMD<__m256i, popcount_t>::add(popcount, hammingPopcount);
+                    popcount_t * pPopcount = reinterpret_cast<popcount_t*>(&popcount);
+                    for (size_t i = 0; i < values_per_mm256; ++i) {
+                        counts_local[pPopcount[i]]++;
+                    }
+                    mm256 = SIMD<__m256i, popcount_t>::add(mm256, mm256inc);
+                }
+            }
+#endif /* __AVX2__ */
 
 #ifdef __SSE4_2__
             const constexpr size_t values_per_mm128 = sizeof(__m128i) / sizeof(popcount_t);
@@ -779,24 +981,42 @@ void countHammingUndetectableErrors() {
     }
     sw.stop();
 
+    accumulator_t * ext_counts = new accumulator_t[CNT_COUNTS]();
     accumulator_t * act_counts = new accumulator_t[CNT_COUNTS]();
     accumulator_t numCodeWords = 0x1ull << ACTUAL_BITCNT_DATA;
 
     accumulator_t maxCounts = 0;
-
-    // the transitions apply to all code words
-    for (size_t i = 0; i < CNT_COUNTS; ++i) {
-        act_counts[i] = counts[i] * numCodeWords;
+    // extend the basic counts to extended Hamming
+    ext_counts[0] = counts[0];
+    for (size_t i = 1; i < CNT_COUNTS; ++i) {
         if (counts[i] > maxCounts) {
             maxCounts = counts[i];
         }
+        if (i & 0x1) {
+            ext_counts[i] = 0;
+        } else {
+            ext_counts[i] = counts[i] + counts[i - 1];
+        }
     }
-    size_t maxWidth0 = 0;
+    size_t maxWidth1 = 0;
     do {
         maxCounts /= 10;
-        ++maxWidth0;
+        ++maxWidth1;
     } while (maxCounts);
 
+    accumulator_t maxCountsExt = 0;
+    // the transitions apply to all code words
+    for (size_t i = 0; i < CNT_COUNTS; ++i) {
+        act_counts[i] = ext_counts[i] * numCodeWords;
+        if (ext_counts[i] > maxCountsExt) {
+            maxCountsExt = ext_counts[i];
+        }
+    }
+    size_t maxWidth2 = 0;
+    do {
+        maxCountsExt /= 10;
+        ++maxWidth2;
+    } while (maxCountsExt);
     // the 1-bit sphere transitions
     for (size_t i = 1; i < CNT_COUNTS; i += 2) {
         act_counts[i] = (act_counts[i - 1] * (BITCNT_CODEWORD - (i - 1))) + ((i + 1) < CNT_COUNTS ? (act_counts[i + 1] * (i + 1)) : 0);
@@ -808,12 +1028,12 @@ void countHammingUndetectableErrors() {
             max = act_counts[i];
         }
     }
-    size_t maxWidth1 = 0;
+    size_t maxWidth3 = 0;
     do {
         max /= 10;
-        ++maxWidth1;
+        ++maxWidth3;
     } while (max);
-    size_t maxWidth2 = 0;
+    size_t maxWidth4 = 0;
     for (size_t i = 0; i < CNT_COUNTS; ++i) {
         size_t maxWidth2tmp = 0;
         accumulator_t maxTransitions2 = numCodeWords * binomial_coefficient<accumulator_t>(BITCNT_CODEWORD, i);
@@ -821,8 +1041,8 @@ void countHammingUndetectableErrors() {
             maxTransitions2 /= 10;
             ++maxWidth2tmp;
         } while (maxTransitions2 > 0);
-        if (maxWidth2tmp > maxWidth2) {
-            maxWidth2 = maxWidth2tmp;
+        if (maxWidth2tmp > maxWidth4) {
+            maxWidth4 = maxWidth2tmp;
         }
     }
     accumulator_t numTotal = 0;
@@ -830,20 +1050,23 @@ void countHammingUndetectableErrors() {
 #ifndef NDEBUG
     std::cout << '(' << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : bucketsize(" << bucket_size_tmp << ") remaining(" << remaining_tmp << ")" << std::endl;
 #endif
+    std::cout << "# The reported colunms are:\n";
+    std::cout
+            << "#   1) bit width\n#   2) (shortened) detecting-only Hamming count\n#   3) (shortened) detecting-only Extended Hamming count\n#   4) (shortened) correcting Extended Hamming count\n#   5) maximum\n#   6) probability (col 4 / (col 5 * n over bit width))\n";
     std::cout << std::dec << "#Distances:\n" << std::fixed << std::setprecision(10);
     for (size_t i = 0; i < CNT_COUNTS; ++i) {
         accumulator_t maxTransitions = numCodeWords * binomial_coefficient<accumulator_t>(BITCNT_CODEWORD, i);
         numTotal += counts[i];
         numTransitions += act_counts[i];
         double probability = double(act_counts[i]) / double(maxTransitions);
-        std::cout << std::right << std::setw(4) << i << ',' << std::setw(maxWidth0) << counts[i] << ',' << std::setw(maxWidth1) << act_counts[i] << ',' << std::setw(maxWidth2) << maxTransitions << ','
-                << probability << '\n';
+        std::cout << std::right << std::setw(4) << i << ',' << std::setw(maxWidth1) << counts[i] << ',' << std::setw(maxWidth2) << ext_counts[i] << ',' << std::setw(maxWidth3) << act_counts[i] << ','
+                << std::setw(maxWidth4) << maxTransitions << ',' << probability << '\n';
     }
     if (numTotal != numCodeWords) {
         std::cerr << '(' << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : numTotal (" << numTotal << " != numCodeWords (" << numCodeWords << ')' << std::endl;
     }
 
-    std::cout << "#(" << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : Computation took " << sw << "ns for " << numCodeWords << " code words and " << numTransitions << " transitions."
+    std::cout << "# (" << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : Computation took " << sw << "ns for " << numCodeWords << " code words and " << numTransitions << " transitions.\n\n"
             << std::endl;
 }
 

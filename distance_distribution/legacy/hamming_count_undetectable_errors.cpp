@@ -933,10 +933,10 @@ void countHammingUndetectableErrors() {
             auto mm256 = SIMD<__m256i, popcount_t>::set_inc(x, 1);
             auto mm256inc = SIMD<__m256i, popcount_t>::set1(values_per_mm256);
 
-            if (max > values_per_mm256) {
+            if (max >= values_per_mm256) {
                 for (; x <= (max - values_per_mm256); x += values_per_mm256) {
                     auto popcount = SIMD<__m256i, popcount_t>::popcount(mm256);
-                    auto hamming = SIMD<__m256i, popcount_t>::ext_hamming(mm256);
+                    auto hamming = SIMD<__m256i, popcount_t>::hamming(mm256);
                     auto hammingPopcount = SIMD<__m256i, popcount_t>::popcount(hamming);
                     popcount = SIMD<__m256i, popcount_t>::add(popcount, hammingPopcount);
                     popcount_t * pPopcount = reinterpret_cast<popcount_t*>(&popcount);
@@ -953,10 +953,10 @@ void countHammingUndetectableErrors() {
             auto mm128 = SIMD<__m128i, popcount_t>::set_inc(x, 1);
             auto mm128inc = SIMD<__m128i, popcount_t>::set1(values_per_mm128);
 
-            if (max > values_per_mm128) {
+            if (max >= values_per_mm128) {
                 for (; x <= (max - values_per_mm128); x += values_per_mm128) {
                     auto popcount = SIMD<__m128i, popcount_t>::popcount(mm128);
-                    auto hamming = SIMD<__m128i, popcount_t>::ext_hamming(mm128);
+                    auto hamming = SIMD<__m128i, popcount_t>::hamming(mm128);
                     auto hammingPopcount = SIMD<__m128i, popcount_t>::popcount(hamming);
                     popcount = SIMD<__m128i, popcount_t>::add(popcount, hammingPopcount);
                     popcount_t * pPopcount = reinterpret_cast<popcount_t*>(&popcount);

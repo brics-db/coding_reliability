@@ -177,13 +177,13 @@ struct Scalar<uint64_t> {
 };
 
 struct ExtHamming08 {
-    typedef uint64_t accumulator_t;
+    typedef uint32_t accumulator_t;
     typedef uint8_t data_t;
 
-    static const constexpr data_t pattern1 = 0x5B;
-    static const constexpr data_t pattern2 = 0x6D;
-    static const constexpr data_t pattern3 = 0x8E;
-    static const constexpr data_t pattern4 = 0xF0;
+    static const constexpr data_t pattern1 = static_cast<data_t>(0x5B);
+    static const constexpr data_t pattern2 = static_cast<data_t>(0x6D);
+    static const constexpr data_t pattern3 = static_cast<data_t>(0x8E);
+    static const constexpr data_t pattern4 = static_cast<data_t>(0xF0);
 
     static inline data_t compute(
             const data_t value) {
@@ -211,11 +211,11 @@ struct ExtHamming16 {
     typedef uint64_t accumulator_t;
     typedef uint16_t data_t;
 
-    static const constexpr data_t pattern1 = 0xAD5B;
-    static const constexpr data_t pattern2 = 0x366D;
-    static const constexpr data_t pattern3 = 0xC78E;
-    static const constexpr data_t pattern4 = 0x07F0;
-    static const constexpr data_t pattern5 = 0xF800;
+    static const constexpr data_t pattern1 = static_cast<data_t>(0xAD5B);
+    static const constexpr data_t pattern2 = static_cast<data_t>(0x366D);
+    static const constexpr data_t pattern3 = static_cast<data_t>(0xC78E);
+    static const constexpr data_t pattern4 = static_cast<data_t>(0x07F0);
+    static const constexpr data_t pattern5 = static_cast<data_t>(0xF800);
 
     static inline data_t compute(
             const data_t value) {
@@ -320,10 +320,13 @@ struct ExtHamming64 {
 
 template<size_t BITCNT_DATA>
 struct ExtHamming {
-    static const constexpr size_t BITCNT_HAMMING = (BITCNT_DATA == 1 ? 3 : (BITCNT_DATA < 5 ? 4 : (BITCNT_DATA < 12 ? 5 : (BITCNT_DATA < 27 ? 6 : (BITCNT_DATA < 58 ? 7 : 8)))));
+    static const constexpr size_t BITCNT_HAMMING = (
+            BITCNT_DATA == 1 ? 3 : (BITCNT_DATA <= 4 ? 4 : (BITCNT_DATA <= 11 ? 5 : (BITCNT_DATA <= 26 ? 6 : (BITCNT_DATA <= 57 ? 7 : BITCNT_DATA <= 64 ? 8 : 9)))));
 
     typedef typename std::conditional<BITCNT_DATA <= 8, ExtHamming08,
-            typename std::conditional<BITCNT_DATA <= 16, ExtHamming16, typename std::conditional<BITCNT_DATA <= 32, ExtHamming32, void>::type>::type>::type hamming_impl_t;
+            typename std::conditional<BITCNT_DATA <= 16, ExtHamming16,
+                    typename std::conditional<BITCNT_DATA <= 32, ExtHamming32, typename std::conditional<BITCNT_DATA <= 64, ExtHamming64, void>::type>::type>::type>::type hamming_impl_t;
+    typedef typename hamming_impl_t::data_t data_t;
 };
 
 template<typename V, typename T>
@@ -1521,45 +1524,48 @@ statistics countHammingUndetectableErrors(
 
 int main() {
     std::vector<statistics> all_stats;
-#ifdef __MARCH_KNL__
-    all_stats.reserve(40);
-#else
-    // no AVX512 assumed
-    all_stats.reserve(32);
-#endif
-    statistics dummy(0, 0, 0, 0, 1);
-    all_stats.emplace_back(countHammingUndetectableErrors<1>(dummy)); // all stats are zero-initialized
-    all_stats.emplace_back(countHammingUndetectableErrors<2>(all_stats[0])); // now stats[0] is all set-up
-    all_stats.emplace_back(countHammingUndetectableErrors<3>(all_stats[1]));
-    all_stats.emplace_back(countHammingUndetectableErrors<4>(all_stats[2]));
-    all_stats.emplace_back(countHammingUndetectableErrors<5>(all_stats[3]));
-    all_stats.emplace_back(countHammingUndetectableErrors<6>(all_stats[4]));
-    all_stats.emplace_back(countHammingUndetectableErrors<7>(all_stats[5]));
-    all_stats.emplace_back(countHammingUndetectableErrors<8>(all_stats[6]));
-    all_stats.emplace_back(countHammingUndetectableErrors<9>(all_stats[7]));
-    all_stats.emplace_back(countHammingUndetectableErrors<10>(all_stats[8]));
-    all_stats.emplace_back(countHammingUndetectableErrors<11>(all_stats[9]));
-    all_stats.emplace_back(countHammingUndetectableErrors<12>(all_stats[10]));
-    all_stats.emplace_back(countHammingUndetectableErrors<13>(all_stats[11]));
-    all_stats.emplace_back(countHammingUndetectableErrors<14>(all_stats[12]));
-    all_stats.emplace_back(countHammingUndetectableErrors<15>(all_stats[13]));
-    all_stats.emplace_back(countHammingUndetectableErrors<16>(all_stats[14]));
-    all_stats.emplace_back(countHammingUndetectableErrors<17>(all_stats[15]));
-    all_stats.emplace_back(countHammingUndetectableErrors<18>(all_stats[16]));
-    all_stats.emplace_back(countHammingUndetectableErrors<19>(all_stats[17]));
-    all_stats.emplace_back(countHammingUndetectableErrors<20>(all_stats[18]));
-    all_stats.emplace_back(countHammingUndetectableErrors<21>(all_stats[19]));
-    all_stats.emplace_back(countHammingUndetectableErrors<22>(all_stats[20]));
-    all_stats.emplace_back(countHammingUndetectableErrors<23>(all_stats[21]));
-    all_stats.emplace_back(countHammingUndetectableErrors<24>(all_stats[22]));
-    all_stats.emplace_back(countHammingUndetectableErrors<25>(all_stats[23]));
-    all_stats.emplace_back(countHammingUndetectableErrors<26>(all_stats[24]));
-    all_stats.emplace_back(countHammingUndetectableErrors<27>(all_stats[25]));
-    all_stats.emplace_back(countHammingUndetectableErrors<28>(all_stats[26]));
-    all_stats.emplace_back(countHammingUndetectableErrors<29>(all_stats[27]));
-    all_stats.emplace_back(countHammingUndetectableErrors<30>(all_stats[28]));
-    all_stats.emplace_back(countHammingUndetectableErrors<31>(all_stats[29]));
-    all_stats.emplace_back(countHammingUndetectableErrors<32>(all_stats[30]));
+    all_stats.reserve(64);
+    all_stats.push_back(statistics(0, 0, 0, 0, 1));
+    all_stats.emplace_back(countHammingUndetectableErrors<1>(all_stats[0])); // all stats are zero-initialized
+    all_stats.emplace_back(countHammingUndetectableErrors<2>(all_stats[1])); // now stats[0] is all set-up
+    all_stats.emplace_back(countHammingUndetectableErrors<3>(all_stats[2]));
+    all_stats.emplace_back(countHammingUndetectableErrors<4>(all_stats[3]));
+    all_stats.emplace_back(countHammingUndetectableErrors<5>(all_stats[4]));
+    all_stats.emplace_back(countHammingUndetectableErrors<6>(all_stats[5]));
+    all_stats.emplace_back(countHammingUndetectableErrors<7>(all_stats[6]));
+    all_stats.emplace_back(countHammingUndetectableErrors<8>(all_stats[7]));
+    all_stats.emplace_back(countHammingUndetectableErrors<9>(all_stats[8]));
+    all_stats.emplace_back(countHammingUndetectableErrors<10>(all_stats[9]));
+    all_stats.emplace_back(countHammingUndetectableErrors<11>(all_stats[10]));
+    all_stats.emplace_back(countHammingUndetectableErrors<12>(all_stats[11]));
+    all_stats.emplace_back(countHammingUndetectableErrors<13>(all_stats[12]));
+    all_stats.emplace_back(countHammingUndetectableErrors<14>(all_stats[13]));
+    all_stats.emplace_back(countHammingUndetectableErrors<15>(all_stats[14]));
+    all_stats.emplace_back(countHammingUndetectableErrors<16>(all_stats[15]));
+    all_stats.emplace_back(countHammingUndetectableErrors<17>(all_stats[16]));
+    all_stats.emplace_back(countHammingUndetectableErrors<18>(all_stats[17]));
+    all_stats.emplace_back(countHammingUndetectableErrors<19>(all_stats[18]));
+    all_stats.emplace_back(countHammingUndetectableErrors<20>(all_stats[19]));
+    all_stats.emplace_back(countHammingUndetectableErrors<21>(all_stats[20]));
+    all_stats.emplace_back(countHammingUndetectableErrors<22>(all_stats[21]));
+    all_stats.emplace_back(countHammingUndetectableErrors<23>(all_stats[22]));
+    all_stats.emplace_back(countHammingUndetectableErrors<24>(all_stats[23]));
+    all_stats.emplace_back(countHammingUndetectableErrors<25>(all_stats[24]));
+    all_stats.emplace_back(countHammingUndetectableErrors<26>(all_stats[25]));
+    all_stats.emplace_back(countHammingUndetectableErrors<27>(all_stats[26]));
+    all_stats.emplace_back(countHammingUndetectableErrors<28>(all_stats[27]));
+    all_stats.emplace_back(countHammingUndetectableErrors<29>(all_stats[28]));
+    all_stats.emplace_back(countHammingUndetectableErrors<30>(all_stats[29]));
+    all_stats.emplace_back(countHammingUndetectableErrors<31>(all_stats[30]));
+    all_stats.emplace_back(countHammingUndetectableErrors<32>(all_stats[31]));
+    all_stats.emplace_back(countHammingUndetectableErrors<33>(all_stats[32]));
+    all_stats.emplace_back(countHammingUndetectableErrors<34>(all_stats[33]));
+    all_stats.emplace_back(countHammingUndetectableErrors<35>(all_stats[34]));
+    all_stats.emplace_back(countHammingUndetectableErrors<36>(all_stats[35]));
+    all_stats.emplace_back(countHammingUndetectableErrors<37>(all_stats[36]));
+    all_stats.emplace_back(countHammingUndetectableErrors<38>(all_stats[37]));
+    all_stats.emplace_back(countHammingUndetectableErrors<39>(all_stats[38]));
+    all_stats.emplace_back(countHammingUndetectableErrors<40>(all_stats[39]));
 
     return 0;
 }

@@ -174,7 +174,8 @@ Statistics countHammingUndetectableErrors(
     typedef typename Statistics::counts_t counts_t;
     std::vector<counts_t> ext_counts(stats.numCounts);
     std::vector<counts_t> cor_counts(stats.numCounts);
-    std::vector<counts_t> act_counts(stats.numCounts);
+    std::vector<counts_t> ext_total_counts(stats.numCounts);
+    std::vector<counts_t> cor_total_counts(stats.numCounts);
 
     // extend the basic counts to extended Hamming
     counts_t maxCountsRaw = 0;
@@ -224,18 +225,28 @@ Statistics countHammingUndetectableErrors(
     } while (maxCountsCor);
 
     // the transitions apply to all code words
-    counts_t maxCountAct = 0;
+    counts_t maxCountExtTotal = 0;
+    counts_t maxCountCorTotal = 0;
     for (size_t i = 0; i < CNT_COUNTS; ++i) {
-        act_counts[i] = cor_counts[i] * CNT_CODEWORDS;
-        if (act_counts[i] > maxCountAct) {
-            maxCountAct = static_cast<counts_t>(act_counts[i]);
+        ext_total_counts[i] = ext_counts[i] * CNT_CODEWORDS;
+        cor_total_counts[i] = cor_counts[i] * CNT_CODEWORDS;
+        if (ext_total_counts[i] > maxCountExtTotal) {
+            maxCountExtTotal = static_cast<counts_t>(ext_total_counts[i]);
+        }
+        if (cor_total_counts[i] > maxCountCorTotal) {
+            maxCountCorTotal = static_cast<counts_t>(cor_total_counts[i]);
         }
     }
-    size_t maxWidthAct = 0;
+    size_t maxWidthExtTotal = 0;
     do {
-        maxCountAct /= 10;
-        ++maxWidthAct;
-    } while (maxCountAct);
+        maxCountExtTotal /= 10;
+        ++maxWidthExtTotal;
+    } while (maxCountExtTotal);
+    size_t maxWidthCorTotal = 0;
+    do {
+        maxCountCorTotal /= 10;
+        ++maxWidthCorTotal;
+    } while (maxCountCorTotal);
 
     counts_t maxTransitions2 = CNT_CODEWORDS * binomial_coefficient<counts_t>(BITCNT_CODEWORD, BITCNT_CODEWORD / 2);
     size_t maxWidthTra = 0;
@@ -256,23 +267,26 @@ Statistics countHammingUndetectableErrors(
     std::cout << "#   2) weight distribution of " << (isCodeShortened ? "shortened " : "") << "detecting-only Hamming\n";
     std::cout << "#   3) weight distribution of " << (isCodeShortened ? "shortened " : "") << "detecting-only Extended Hamming\n";
     std::cout << "#   4) weight distribution of " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming\n";
-    std::cout << "#   5) error pattern weight distribution of " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming\n";
-    std::cout << "#   6) maximum # transitions of " << (isCodeShortened ? "shortened " : "") << "extended Hamming (2^k * (n over col 1))\n";
-    std::cout << "#   7) probability (col 5 / col 6)\n";
+    std::cout << "#   5) error pattern weight distribution of " << (isCodeShortened ? "shortened " : "") << "detecting-only Extended Hamming\n";
+    std::cout << "#   6) error pattern weight distribution of " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming\n";
+    std::cout << "#   7) maximum # transitions of " << (isCodeShortened ? "shortened " : "") << "extended Hamming (2^k * (n over col 1))\n";
+    std::cout << "#   8) probability of " << (isCodeShortened ? "shortened " : "") << "detecting-only Extended Hamming (col 5 / col 7)\n";
+    std::cout << "#   9) probability of " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming (col 6 / col 7)\n";
     std::cout << std::dec << "#Distances:\n" << std::fixed << std::setprecision(10);
     for (size_t i = 0; i < CNT_COUNTS; ++i) {
         counts_t maxTransitions = CNT_CODEWORDS * binomial_coefficient<counts_t>(BITCNT_CODEWORD, i);
         numTotal += stats.counts[i];
-        numTransitions += act_counts[i];
-        double probability_act = double(act_counts[i]) / double(maxTransitions);
+        numTransitions += cor_total_counts[i];
 
-        std::cout << std::right << std::setw(4) << i;
-        std::cout << ',' << std::setw(maxWidthRaw) << stats.counts[i];
-        std::cout << ',' << std::setw(maxWidthExt) << ext_counts[i];
-        std::cout << ',' << std::setw(maxWidthCor) << cor_counts[i];
-        std::cout << ',' << std::setw(maxWidthAct) << act_counts[i];
-        std::cout << ',' << std::setw(maxWidthTra) << maxTransitions;
-        std::cout << ',' << probability_act << '\n';
+        std::cout << std::right << std::setw(4) << i;                                           // bit width
+        std::cout << ',' << std::setw(maxWidthRaw) << stats.counts[i];                          // weight distribution detecting Hamming
+        std::cout << ',' << std::setw(maxWidthExt) << ext_counts[i];                            // weight distribution detecting Extended Hamming
+        std::cout << ',' << std::setw(maxWidthCor) << cor_counts[i];                            // weight distribution correcting Extended Hamming
+        std::cout << ',' << std::setw(maxWidthExtTotal) << ext_total_counts[i];                 // error weight pattern distribution detecting Extended Hamming
+        std::cout << ',' << std::setw(maxWidthCorTotal) << cor_total_counts[i];                 // error weight pattern distribution correcting Extended Hamming
+        std::cout << ',' << std::setw(maxWidthTra) << maxTransitions;                           // maximum # transitions
+        std::cout << ',' << (double(ext_total_counts[i]) / double(maxTransitions));             // SDC probability of detecting Extended Hamming
+        std::cout << ',' << (double(cor_total_counts[i]) / double(maxTransitions)) << '\n';     // SDC probability of correcting Extended Hamming
     }
     if (numTotal != CNT_CODEWORDS) {
         std::cerr << '(' << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : numTotal (" << numTotal << " != numCodeWords (" << CNT_CODEWORDS << ')' << std::endl;

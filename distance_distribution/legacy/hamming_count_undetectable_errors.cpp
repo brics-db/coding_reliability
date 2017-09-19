@@ -29,9 +29,6 @@
 #define __builtin_popcount __popcnt64
 #endif
 
-#if defined(__AVX512F__) and defined(__AVX512ER__) and defined(__AVX512CD__) and defined(__AVX512PF__)
-#define __MARCH_KNL__
-#endif
 /**
  * Taken and adapted from: https://gist.github.com/jeetsukumaran/5392166
  *
@@ -340,7 +337,7 @@ struct SIMD<__m128i, uint8_t> {
     }
 
     static __m128i set_inc(
-            uint8_t base = 0,
+            uint8_t base,
             uint8_t inc = 1) {
         return _mm_set_epi8(static_cast<uint8_t>(base + 15 * inc), static_cast<uint8_t>(base + 14 * inc), static_cast<uint8_t>(base + 13 * inc), static_cast<uint8_t>(base + 12 * inc),
                 static_cast<uint8_t>(base + 11 * inc), static_cast<uint8_t>(base + 10 * inc), static_cast<uint8_t>(base + 9 * inc), static_cast<uint8_t>(base + 8 * inc),
@@ -420,7 +417,7 @@ struct SIMD<__m128i, uint16_t> {
     }
 
     static __m128i set_inc(
-            uint16_t base = 0,
+            uint16_t base,
             uint16_t inc = 1) {
         return _mm_set_epi16(static_cast<uint16_t>(base + 7 * inc), static_cast<uint16_t>(base + 6 * inc), static_cast<uint16_t>(base + 5 * inc), static_cast<uint16_t>(base + 4 * inc),
                 static_cast<uint16_t>(base + 3 * inc), static_cast<uint16_t>(base + 2 * inc), static_cast<uint16_t>(base + 1 * inc), base);
@@ -502,7 +499,7 @@ struct SIMD<__m128i, uint32_t> {
     }
 
     static __m128i set_inc(
-            uint32_t base = 0,
+            uint32_t base,
             uint32_t inc = 1) {
         return _mm_set_epi32(static_cast<uint32_t>(base + 3 * inc), static_cast<uint32_t>(base + 2 * inc), static_cast<uint32_t>(base + 1 * inc), base);
     }
@@ -591,7 +588,7 @@ struct SIMD<__m128i, uint64_t> {
     }
 
     static __m128i set_inc(
-            uint64_t base = 0,
+            uint64_t base,
             uint64_t inc = 1) {
         return _mm_set_epi64x(base + inc, base);
     }
@@ -688,7 +685,7 @@ struct SIMD<__m256i, uint8_t> {
     }
 
     static __m256i set_inc(
-            uint8_t base = 0,
+            uint8_t base,
             uint8_t inc = 1) {
         return _mm256_set_epi8(static_cast<uint8_t>(base + 31 * inc), static_cast<uint8_t>(base + 30 * inc), static_cast<uint8_t>(base + 29 * inc), static_cast<uint8_t>(base + 28 * inc),
                 static_cast<uint8_t>(base + 27 * inc), static_cast<uint8_t>(base + 26 * inc), static_cast<uint8_t>(base + 25 * inc), static_cast<uint8_t>(base + 24 * inc),
@@ -772,7 +769,7 @@ struct SIMD<__m256i, uint16_t> {
     }
 
     static __m256i set_inc(
-            uint16_t base = 0,
+            uint16_t base,
             uint16_t inc = 1) {
         return _mm256_set_epi16(static_cast<uint16_t>(base + 15 * inc), static_cast<uint16_t>(base + 14 * inc), static_cast<uint16_t>(base + 13 * inc), static_cast<uint16_t>(base + 12 * inc),
                 static_cast<uint16_t>(base + 11 * inc), static_cast<uint16_t>(base + 10 * inc), static_cast<uint16_t>(base + 9 * inc), static_cast<uint16_t>(base + 8 * inc),
@@ -857,7 +854,7 @@ struct SIMD<__m256i, uint32_t> {
     }
 
     static __m256i set_inc(
-            uint32_t base = 0,
+            uint32_t base,
             uint32_t inc = 1) {
         return _mm256_set_epi32(static_cast<uint32_t>(base + 7 * inc), static_cast<uint32_t>(base + 6 * inc), static_cast<uint32_t>(base + 5 * inc), static_cast<uint32_t>(base + 4 * inc),
                 static_cast<uint32_t>(base + 3 * inc), static_cast<uint32_t>(base + 2 * inc), static_cast<uint32_t>(base + 1 * inc), base);
@@ -948,7 +945,7 @@ struct SIMD<__m256i, uint64_t> {
     }
 
     static __m256i set_inc(
-            uint64_t base = 0,
+            uint64_t base,
             uint64_t inc = 1) {
         return _mm256_set_epi64x(static_cast<uint64_t>(base + 3 * inc), static_cast<uint64_t>(base + 2 * inc), static_cast<uint64_t>(base + 1 * inc), base);
     }
@@ -1037,112 +1034,15 @@ struct SIMD<__m256i, uint64_t> {
 };
 #endif
 
-/*
- #ifdef __MARCH_KNL__
-
- template<>
- struct SIMD<__m512i, uint8_t> {
- static __m512i set1(
- uint8_t value) {
- return _mm512_set1_epi8(value);
- }
-
- static __m512i set_inc(
- uint8_t base = 0,
- uint8_t inc = 1) {
- return _mm512_set_epi8(static_cast<uint8_t>(base + 63 * inc), static_cast<uint8_t>(base + 62 * inc), static_cast<uint8_t>(base + 61 * inc), static_cast<uint8_t>(base + 60 * inc),
- static_cast<uint8_t>(base + 59 * inc), static_cast<uint8_t>(base + 58 * inc), static_cast<uint8_t>(base + 57 * inc), static_cast<uint8_t>(base + 56 * inc),
- static_cast<uint8_t>(base + 55 * inc), static_cast<uint8_t>(base + 54 * inc), static_cast<uint8_t>(base + 53 * inc), static_cast<uint8_t>(base + 52 * inc),
- static_cast<uint8_t>(base + 51 * inc), static_cast<uint8_t>(base + 50 * inc), static_cast<uint8_t>(base + 49 * inc), static_cast<uint8_t>(base + 48 * inc),
- static_cast<uint8_t>(base + 47 * inc), static_cast<uint8_t>(base + 46 * inc), static_cast<uint8_t>(base + 45 * inc), static_cast<uint8_t>(base + 44 * inc),
- static_cast<uint8_t>(base + 43 * inc), static_cast<uint8_t>(base + 42 * inc), static_cast<uint8_t>(base + 41 * inc), static_cast<uint8_t>(base + 40 * inc),
- static_cast<uint8_t>(base + 39 * inc), static_cast<uint8_t>(base + 38 * inc), static_cast<uint8_t>(base + 37 * inc), static_cast<uint8_t>(base + 36 * inc),
- static_cast<uint8_t>(base + 35 * inc), static_cast<uint8_t>(base + 34 * inc), static_cast<uint8_t>(base + 33 * inc), static_cast<uint8_t>(base + 32 * inc),
- static_cast<uint8_t>(base + 31 * inc), static_cast<uint8_t>(base + 30 * inc), static_cast<uint8_t>(base + 29 * inc), static_cast<uint8_t>(base + 28 * inc),
- static_cast<uint8_t>(base + 27 * inc), static_cast<uint8_t>(base + 26 * inc), static_cast<uint8_t>(base + 25 * inc), static_cast<uint8_t>(base + 24 * inc),
- static_cast<uint8_t>(base + 23 * inc), static_cast<uint8_t>(base + 22 * inc), static_cast<uint8_t>(base + 21 * inc), static_cast<uint8_t>(base + 20 * inc),
- static_cast<uint8_t>(base + 19 * inc), static_cast<uint8_t>(base + 18 * inc), static_cast<uint8_t>(base + 17 * inc), static_cast<uint8_t>(base + 16 * inc),
- static_cast<uint8_t>(base + 15 * inc), static_cast<uint8_t>(base + 14 * inc), static_cast<uint8_t>(base + 13 * inc), static_cast<uint8_t>(base + 12 * inc),
- static_cast<uint8_t>(base + 11 * inc), static_cast<uint8_t>(base + 10 * inc), static_cast<uint8_t>(base + 9 * inc), static_cast<uint8_t>(base + 8 * inc),
- static_cast<uint8_t>(base + 7 * inc), static_cast<uint8_t>(base + 6 * inc), static_cast<uint8_t>(base + 5 * inc), static_cast<uint8_t>(base + 4 * inc),
- static_cast<uint8_t>(base + 3 * inc), static_cast<uint8_t>(base + 2 * inc), static_cast<uint8_t>(base + 1 * inc), base);
- }
-
- static __m512i add(
- __m512i a,
- __m512i b) {
- return _mm512_add_epi8(a, b);
- }
-
- static __m512i popcount(
- __m512i a) {
- auto lookup = _mm512_set_epi8(4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0, 4, 3, 3, 2, 3, 2, 2, 1, 3, 2, 2, 1, 2, 1, 1, 0);
- auto low_mask = _mm512_set1_epi8(0x0f);
- auto lo = _mm512_and_si512(a, low_mask);
- auto hi = _mm512_and_si512(_mm256_srli_epi16(a, 4), low_mask);
- auto cnt_lo = _mm512_shuffle_epi8(lookup, lo);
- auto cnt_hi = _mm512_shuffle_epi8(lookup, hi);
- return _mm256_add_epi8(cnt_lo, cnt_hi);
- }
-
- static __m256i hamming(
- __m256i data) {
- auto pattern1 = _mm256_set1_epi8(ExtHamming08::pattern1);
- auto pattern2 = _mm256_set1_epi8(ExtHamming08::pattern2);
- auto pattern3 = _mm256_set1_epi8(ExtHamming08::pattern3);
- auto pattern4 = _mm256_set1_epi8(ExtHamming08::pattern4);
- auto mask = _mm256_set1_epi8(static_cast<int8_t>(0x1));
- uint8_t shift = 1;
- auto tmp2 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern1)), mask);
- auto codebits = tmp2;
- auto tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern2)), mask);
- tmp2 = _mm256_xor_si256(tmp2, tmp1);
- codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, shift));
- tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern3)), mask);
- tmp2 = _mm256_xor_si256(tmp2, tmp1);
- codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
- tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern4)), mask);
- tmp2 = _mm256_xor_si256(tmp2, tmp1);
- codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
- return codebits;
- }
-
- static __m256i ext_hamming(
- __m256i data) {
- auto pattern1 = _mm256_set1_epi8(ExtHamming08::pattern1);
- auto pattern2 = _mm256_set1_epi8(ExtHamming08::pattern2);
- auto pattern3 = _mm256_set1_epi8(ExtHamming08::pattern3);
- auto pattern4 = _mm256_set1_epi8(ExtHamming08::pattern4);
- auto mask = _mm256_set1_epi8(static_cast<int8_t>(0x1));
- uint8_t shift = 1;
- auto tmp2 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern1)), mask);
- auto codebits = _mm256_slli_epi16(tmp2, shift);
- auto tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern2)), mask);
- tmp2 = _mm256_xor_si256(tmp2, tmp1);
- codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
- tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern3)), mask);
- tmp2 = _mm256_xor_si256(tmp2, tmp1);
- codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
- tmp1 = _mm256_and_si256(popcount(_mm256_and_si256(data, pattern4)), mask);
- tmp2 = _mm256_xor_si256(tmp2, tmp1);
- codebits = _mm256_or_si256(codebits, _mm256_slli_epi16(tmp1, ++shift));
- tmp1 = _mm256_and_si256(_mm256_add_epi8(popcount(data), tmp2), mask);
- codebits = _mm256_or_si256(codebits, tmp1);
- return codebits;
- }
- };
- #endif
- */
-
 struct statistics {
+    typedef boost::multiprecision::uint128_t counts_t;
+
     const size_t numDataBits;
     const size_t numHammingBits;
     const size_t numCodeBits;
-    const boost::multiprecision::uint128_t numCodeWords;
+    const counts_t numCodeWords;
     const size_t numCounts;
-    std::unique_ptr<boost::multiprecision::uint128_t[]> counts;
-    std::unique_ptr<boost::multiprecision::uint128_t[]> ext_counts;
-    std::unique_ptr<boost::multiprecision::uint128_t[]> act_counts;
+    std::unique_ptr<counts_t[]> counts;
 
     statistics(
             size_t numDataBits,
@@ -1155,13 +1055,9 @@ struct statistics {
               numCodeBits(numCodeBits),
               numCodeWords(numCodeWords),
               numCounts(numCounts),
-              counts(new boost::multiprecision::uint128_t[numCounts]),
-              ext_counts(new boost::multiprecision::uint128_t[numCounts]),
-              act_counts(new boost::multiprecision::uint128_t[numCounts]) {
+              counts(new boost::multiprecision::uint128_t[numCounts]) {
         for (size_t i = 0; i < numCounts; ++i) {
             this->counts[i] = 0;
-            this->ext_counts[i] = 0;
-            this->act_counts[i] = 0;
         }
     }
 
@@ -1173,19 +1069,16 @@ struct statistics {
             size_t numCounts,
             boost::multiprecision::uint128_t * counts,
             boost::multiprecision::uint128_t * ext_counts,
+            boost::multiprecision::uint128_t * cor_counts,
             boost::multiprecision::uint128_t * act_counts)
             : numDataBits(numDataBits),
               numHammingBits(numHammingBits),
               numCodeBits(numCodeBits),
               numCodeWords(numCodeWords),
               numCounts(numCounts),
-              counts(new boost::multiprecision::uint128_t[numCounts]),
-              ext_counts(new boost::multiprecision::uint128_t[numCounts]),
-              act_counts(new boost::multiprecision::uint128_t[numCounts]) {
+              counts(new boost::multiprecision::uint128_t[numCounts]) {
         for (size_t i = 0; i < numCounts; ++i) {
             this->counts[i] = counts[i];
-            this->ext_counts[i] = ext_counts[i];
-            this->act_counts[i] = act_counts[i];
         }
     }
 
@@ -1197,19 +1090,16 @@ struct statistics {
             size_t numCounts,
             uint64_t * counts,
             uint64_t * ext_counts,
+            uint64_t * cor_counts,
             uint64_t * act_counts)
             : numDataBits(numDataBits),
               numHammingBits(numHammingBits),
               numCodeBits(numCodeBits),
               numCodeWords(numCodeWords),
               numCounts(numCounts),
-              counts(new boost::multiprecision::uint128_t[numCounts]),
-              ext_counts(new boost::multiprecision::uint128_t[numCounts]),
-              act_counts(new boost::multiprecision::uint128_t[numCounts]) {
+              counts(new boost::multiprecision::uint128_t[numCounts]) {
         for (size_t i = 0; i < numCounts; ++i) {
             this->counts[i] = counts[i];
-            this->ext_counts[i] = ext_counts[i];
-            this->act_counts[i] = act_counts[i];
         }
     }
 
@@ -1219,21 +1109,15 @@ struct statistics {
             size_t numCodeBits,
             boost::multiprecision::uint128_t numCodeWords,
             size_t numCounts,
-            uint32_t * counts,
-            uint32_t * ext_counts,
-            uint32_t * act_counts)
+            uint32_t * counts)
             : numDataBits(numDataBits),
               numHammingBits(numHammingBits),
               numCodeBits(numCodeBits),
               numCodeWords(numCodeWords),
               numCounts(numCounts),
-              counts(new boost::multiprecision::uint128_t[numCounts]),
-              ext_counts(new boost::multiprecision::uint128_t[numCounts]),
-              act_counts(new boost::multiprecision::uint128_t[numCounts]) {
+              counts(new boost::multiprecision::uint128_t[numCounts]) {
         for (size_t i = 0; i < numCounts; ++i) {
             this->counts[i] = counts[i];
-            this->ext_counts[i] = ext_counts[i];
-            this->act_counts[i] = act_counts[i];
         }
     }
 
@@ -1243,21 +1127,15 @@ struct statistics {
             size_t numCodeBits,
             boost::multiprecision::uint128_t numCodeWords,
             size_t numCounts,
-            uint16_t * counts,
-            uint16_t * ext_counts,
-            uint16_t * act_counts)
+            uint16_t * counts)
             : numDataBits(numDataBits),
               numHammingBits(numHammingBits),
               numCodeBits(numCodeBits),
               numCodeWords(numCodeWords),
               numCounts(numCounts),
-              counts(new boost::multiprecision::uint128_t[numCounts]),
-              ext_counts(new boost::multiprecision::uint128_t[numCounts]),
-              act_counts(new boost::multiprecision::uint128_t[numCounts]) {
+              counts(new boost::multiprecision::uint128_t[numCounts]) {
         for (size_t i = 0; i < numCounts; ++i) {
             this->counts[i] = counts[i];
-            this->ext_counts[i] = ext_counts[i];
-            this->act_counts[i] = act_counts[i];
         }
     }
 
@@ -1275,13 +1153,9 @@ struct statistics {
               numCodeBits(numCodeBits),
               numCodeWords(numCodeWords),
               numCounts(numCounts),
-              counts(new boost::multiprecision::uint128_t[numCounts]),
-              ext_counts(new boost::multiprecision::uint128_t[numCounts]),
-              act_counts(new boost::multiprecision::uint128_t[numCounts]) {
+              counts(new boost::multiprecision::uint128_t[numCounts]) {
         for (size_t i = 0; i < numCounts; ++i) {
             this->counts[i] = counts[i];
-            this->ext_counts[i] = ext_counts[i];
-            this->act_counts[i] = act_counts[i];
         }
     }
 
@@ -1292,9 +1166,7 @@ struct statistics {
               numCodeBits(other.numCodeBits),
               numCodeWords(other.numCodeWords),
               numCounts(other.numCounts),
-              counts(std::move(other.counts)),
-              ext_counts(std::move(other.ext_counts)),
-              act_counts(std::move(other.act_counts)) {
+              counts(std::move(other.counts)) {
     }
 
     statistics(
@@ -1336,11 +1208,6 @@ statistics countHammingUndetectableErrors(
 #endif
     for (size_t i = 0; i < former_stats.numCounts; ++i) {
         stats.counts[i] = former_stats.counts[i];
-        stats.ext_counts[i] = former_stats.ext_counts[i];
-        stats.act_counts[i] = former_stats.act_counts[i];
-#ifndef NDEBUG
-        std::cout << "#\t" << stats.counts[i] << "," << stats.ext_counts[i] << "," << stats.act_counts[i] << "\n";
-#endif
     }
     std::cout << std::flush;
 
@@ -1435,82 +1302,108 @@ statistics countHammingUndetectableErrors(
     }
     sw.stop();
 
-    accumulator_t maxCounts = 0;
-    // extend the basic counts to extended Hamming
-    stats.ext_counts[0] = stats.counts[0];
-    for (size_t i = 1; i < CNT_COUNTS; ++i) {
-        if (stats.counts[i] > maxCounts) {
-            maxCounts = static_cast<accumulator_t>(stats.counts[i]);
-        }
-        if (i & 0x1) {
-            stats.ext_counts[i] = 0;
-        } else {
-            stats.ext_counts[i] = stats.counts[i] + stats.counts[i - 1];
-        }
-    }
-    size_t maxWidth1 = 0;
-    do {
-        maxCounts /= 10;
-        ++maxWidth1;
-    } while (maxCounts);
+    typedef typename statistics::counts_t counts_t;
+    std::vector<counts_t> ext_counts(stats.numCounts);
+    std::vector<counts_t> cor_counts(stats.numCounts);
+    std::vector<counts_t> act_counts(stats.numCounts);
 
-    accumulator_t maxCountsExt = 0;
-    // the transitions apply to all code words
-    for (size_t i = 0; i < CNT_COUNTS; ++i) {
-        stats.act_counts[i] = stats.ext_counts[i] * CNT_CODEWORDS;
-        if (stats.ext_counts[i] > maxCountsExt) {
-            maxCountsExt = static_cast<accumulator_t>(stats.ext_counts[i]);
+    // extend the basic counts to extended Hamming
+    counts_t maxCountsRaw = 0;
+    counts_t maxCountsExt = 0;
+    ext_counts[0] = stats.counts[0];
+    for (size_t i = 1; i < CNT_COUNTS; ++i) {
+        if (i & 0x1) {
+            ext_counts[i] = 0;
+        } else {
+            ext_counts[i] = stats.counts[i] + stats.counts[i - 1];
+        }
+        if (stats.counts[i] > maxCountsRaw) {
+            maxCountsRaw = static_cast<counts_t>(stats.counts[i]);
+        }
+        if (ext_counts[i] > maxCountsExt) {
+            maxCountsExt = static_cast<counts_t>(ext_counts[i]);
         }
     }
-    size_t maxWidth2 = 0;
+    size_t maxWidthRaw = 0;
+    do {
+        maxCountsRaw /= 10;
+        ++maxWidthRaw;
+    } while (maxCountsRaw);
+    size_t maxWidthExt = 0;
     do {
         maxCountsExt /= 10;
-        ++maxWidth2;
+        ++maxWidthExt;
     } while (maxCountsExt);
-    // the 1-bit sphere transitions
-    for (size_t i = 1; i < CNT_COUNTS; i += 2) {
-        stats.act_counts[i] = (stats.act_counts[i - 1] * (BITCNT_CODEWORD - (i - 1))) + ((i + 1) < CNT_COUNTS ? (stats.act_counts[i + 1] * (i + 1)) : 0);
-    }
 
-    accumulator_t max = 0;
-    for (size_t i = 0; i < CNT_COUNTS; ++i) {
-        if (stats.act_counts[i] > max) {
-            max = static_cast<accumulator_t>(stats.act_counts[i]);
+    // the 1-bit sphere transitions
+    counts_t maxCountsCor = 0;
+    cor_counts[0] = ext_counts[0];
+    for (size_t i = 1; i < CNT_COUNTS; ++i) {
+        if (i & 0x1) {
+            cor_counts[i] = (ext_counts[i - 1] * (BITCNT_CODEWORD - (i - 1))) + ((i + 1) < CNT_COUNTS ? (ext_counts[i + 1] * (i + 1)) : 0);
+        } else {
+            cor_counts[i] = ext_counts[i];
+        }
+        if (cor_counts[i] > maxCountsCor) {
+            maxCountsCor = static_cast<counts_t>(cor_counts[i]);
         }
     }
-    size_t maxWidth3 = 0;
+    size_t maxWidthCor = 0;
     do {
-        max /= 10;
-        ++maxWidth3;
-    } while (max);
-    size_t maxWidth4 = 0;
+        maxCountsCor /= 10;
+        ++maxWidthCor;
+    } while (maxCountsCor);
+
+    // the transitions apply to all code words
+    counts_t maxCountAct = 0;
     for (size_t i = 0; i < CNT_COUNTS; ++i) {
-        size_t maxWidth2tmp = 0;
-        accumulator_t maxTransitions2 = CNT_CODEWORDS * binomial_coefficient<accumulator_t>(BITCNT_CODEWORD, i);
-        do {
-            maxTransitions2 /= 10;
-            ++maxWidth2tmp;
-        } while (maxTransitions2 > 0);
-        if (maxWidth2tmp > maxWidth4) {
-            maxWidth4 = maxWidth2tmp;
+        act_counts[i] = cor_counts[i] * CNT_CODEWORDS;
+        if (act_counts[i] > maxCountAct) {
+            maxCountAct = static_cast<counts_t>(act_counts[i]);
         }
     }
-    accumulator_t numTotal = 0;
-    accumulator_t numTransitions = 0;
+    size_t maxWidthAct = 0;
+    do {
+        maxCountAct /= 10;
+        ++maxWidthAct;
+    } while (maxCountAct);
+
+    counts_t maxTransitions2 = CNT_CODEWORDS * binomial_coefficient<counts_t>(BITCNT_CODEWORD, BITCNT_CODEWORD / 2);
+    size_t maxWidthTra = 0;
+    do {
+        maxTransitions2 /= 10;
+        ++maxWidthTra;
+    } while (maxTransitions2 > 0);
+
+    counts_t numTotal = 0;
+    counts_t numTransitions = 0;
 #ifndef NDEBUG
     std::cout << '(' << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : bucketsize(" << bucket_size_tmp << ") remaining(" << remaining_tmp << ")" << std::endl;
 #endif
+    const constexpr bool isCodeShortened = (BITCNT_CODEWORD & (~BITCNT_CODEWORD + 1)) == BITCNT_CODEWORD;
+    std::cout << "# SDC probabilities for a (n,k) = (" << BITCNT_CODEWORD << ',' << ACTUAL_BITCNT_DATA << ") " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming code\n";
     std::cout << "# The reported colunms are:\n";
-    std::cout << "#   1) bit width (k)\n" << "#   2) (shortened) detecting-only Hamming count\n" << "#   3) (shortened) detecting-only Extended Hamming count\n"
-            << "#   4) (shortened) correcting Extended Hamming count\n" << "#   5) maximum\n#   6) probability (col 4 / (col 5 * n over k))\n";
+    std::cout << "#   1) bit width\n";
+    std::cout << "#   2) weight distribution of " << (isCodeShortened ? "shortened " : "") << "detecting-only Hamming\n";
+    std::cout << "#   3) weight distribution of " << (isCodeShortened ? "shortened " : "") << "detecting-only Extended Hamming\n";
+    std::cout << "#   4) weight distribution of " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming\n";
+    std::cout << "#   5) error pattern weight distribution of " << (isCodeShortened ? "shortened " : "") << "correcting Extended Hamming\n";
+    std::cout << "#   6) maximum # transitions of " << (isCodeShortened ? "shortened " : "") << "extended Hamming (2^k * (n over col 1))\n";
+    std::cout << "#   7) probability (col 5 / col 6)\n";
     std::cout << std::dec << "#Distances:\n" << std::fixed << std::setprecision(10);
     for (size_t i = 0; i < CNT_COUNTS; ++i) {
-        accumulator_t maxTransitions = CNT_CODEWORDS * binomial_coefficient<accumulator_t>(BITCNT_CODEWORD, i);
-        numTotal += static_cast<accumulator_t>(stats.counts[i]);
-        numTransitions += static_cast<accumulator_t>(stats.act_counts[i]);
-        double probability = double(stats.act_counts[i]) / double(maxTransitions);
-        std::cout << std::right << std::setw(4) << i << ',' << std::setw(maxWidth1) << stats.counts[i] << ',' << std::setw(maxWidth2) << stats.ext_counts[i] << ',' << std::setw(maxWidth3)
-                << stats.act_counts[i] << ',' << std::setw(maxWidth4) << maxTransitions << ',' << probability << '\n';
+        counts_t maxTransitions = CNT_CODEWORDS * binomial_coefficient<counts_t>(BITCNT_CODEWORD, i);
+        numTotal += stats.counts[i];
+        numTransitions += act_counts[i];
+        double probability_act = double(act_counts[i]) / double(maxTransitions);
+
+        std::cout << std::right << std::setw(4) << i;
+        std::cout << ',' << std::setw(maxWidthRaw) << stats.counts[i];
+        std::cout << ',' << std::setw(maxWidthExt) << ext_counts[i];
+        std::cout << ',' << std::setw(maxWidthCor) << cor_counts[i];
+        std::cout << ',' << std::setw(maxWidthAct) << act_counts[i];
+        std::cout << ',' << std::setw(maxWidthTra) << maxTransitions;
+        std::cout << ',' << probability_act << '\n';
     }
     if (numTotal != CNT_CODEWORDS) {
         std::cerr << '(' << BITCNT_CODEWORD << '/' << ACTUAL_BITCNT_DATA << ") : numTotal (" << numTotal << " != numCodeWords (" << CNT_CODEWORDS << ')' << std::endl;

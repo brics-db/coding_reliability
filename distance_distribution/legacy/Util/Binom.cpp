@@ -85,3 +85,15 @@ template uint64_t binomial_coefficient<uint64_t>(
 template boost::multiprecision::uint128_t binomial_coefficient<boost::multiprecision::uint128_t>(
         size_t n,
         size_t k);
+
+template boost::multiprecision::uint256_t binomial_coefficient<boost::multiprecision::uint256_t>(
+        size_t n,
+        size_t k);
+
+template boost::multiprecision::uint512_t binomial_coefficient<boost::multiprecision::uint512_t>(
+        size_t n,
+        size_t k);
+
+template boost::multiprecision::uint1024_t binomial_coefficient<boost::multiprecision::uint1024_t>(
+        size_t n,
+        size_t k);

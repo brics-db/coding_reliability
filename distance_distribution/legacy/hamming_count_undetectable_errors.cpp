@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <omp.h>
 #include <immintrin.h>
+#include <boost/multiprecision/cpp_int.hpp>
 
 #include "Hamming/Scalar.hpp"
 #include "Hamming/SSE.hpp"
@@ -70,12 +71,16 @@ Statistics countHammingUndetectableErrors(
     StopWatch sw;
     sw.start();
 
-    Statistics stats(ACTUAL_BITCNT_DATA, BITCNT_HAMMINGBITS, BITCNT_CODEWORD, CNT_CODEWORDS, CNT_COUNTS);
+    Statistics stats(ACTUAL_BITCNT_DATA, BITCNT_HAMMINGBITS);
     // we reuse the former stats to half the number of code words we actually need to count
 #ifndef NDEBUG
-    std::cout << "# former stats given (" << former_stats.numCounts << " counts, " << former_stats.numCodeWords << " codewords):\n";
+    std::cout << "# former stats given (" << former_stats.numCodeBits << '/' << former_stats.numDataBits << " code, " << former_stats.numCounts << " counts, " << former_stats.numCodeWords
+            << " codewords):\n";
 #endif
     for (size_t i = 0; i < former_stats.numCounts; ++i) {
+#ifndef NDEBUG
+        std::cout << "# " << std::setw(4) << i << ',' << former_stats.counts[i] << std::endl;
+#endif
         stats.counts[i] = former_stats.counts[i];
     }
     std::cout << std::flush;
@@ -117,6 +122,13 @@ Statistics countHammingUndetectableErrors(
             std::array<accumulator_t, CNT_COUNTS> counts_local {0};
             size_t x = former_stats.numCodeWords + bucket_size * thread;
             const size_t max = x + bucket_size + (thread == (num_threads - 1) ? remaining : 0); // the last thread does the few additional remaining code words
+
+#ifndef NDEBUG
+#pragma omp critical
+            {
+                std::cout << omp_get_thread_num() << ": x=" << x << " max=" << max << std::endl;
+            }
+#endif
 
 #ifdef __AVX2__
             const constexpr size_t values_per_mm256 = sizeof(__m256i) / sizeof(data_t);
@@ -301,47 +313,142 @@ Statistics countHammingUndetectableErrors(
 int main() {
     std::vector<Statistics> all_stats;
     all_stats.reserve(64);
-    all_stats.push_back(Statistics(0, 0, 0, 0, 1));
-    all_stats.emplace_back(countHammingUndetectableErrors<1>(all_stats[0])); // all stats are zero-initialized
-    all_stats.emplace_back(countHammingUndetectableErrors<2>(all_stats[1])); // now stats[0] is all set-up
-    all_stats.emplace_back(countHammingUndetectableErrors<3>(all_stats[2]));
-    all_stats.emplace_back(countHammingUndetectableErrors<4>(all_stats[3]));
-    all_stats.emplace_back(countHammingUndetectableErrors<5>(all_stats[4]));
-    all_stats.emplace_back(countHammingUndetectableErrors<6>(all_stats[5]));
-    all_stats.emplace_back(countHammingUndetectableErrors<7>(all_stats[6]));
-    all_stats.emplace_back(countHammingUndetectableErrors<8>(all_stats[7]));
-    all_stats.emplace_back(countHammingUndetectableErrors<9>(all_stats[8]));
-    all_stats.emplace_back(countHammingUndetectableErrors<10>(all_stats[9]));
-    all_stats.emplace_back(countHammingUndetectableErrors<11>(all_stats[10]));
-    all_stats.emplace_back(countHammingUndetectableErrors<12>(all_stats[11]));
-    all_stats.emplace_back(countHammingUndetectableErrors<13>(all_stats[12]));
-    all_stats.emplace_back(countHammingUndetectableErrors<14>(all_stats[13]));
-    all_stats.emplace_back(countHammingUndetectableErrors<15>(all_stats[14]));
-    all_stats.emplace_back(countHammingUndetectableErrors<16>(all_stats[15]));
-    all_stats.emplace_back(countHammingUndetectableErrors<17>(all_stats[16]));
-    all_stats.emplace_back(countHammingUndetectableErrors<18>(all_stats[17]));
-    all_stats.emplace_back(countHammingUndetectableErrors<19>(all_stats[18]));
-    all_stats.emplace_back(countHammingUndetectableErrors<20>(all_stats[19]));
-    all_stats.emplace_back(countHammingUndetectableErrors<21>(all_stats[20]));
-    all_stats.emplace_back(countHammingUndetectableErrors<22>(all_stats[21]));
-    all_stats.emplace_back(countHammingUndetectableErrors<23>(all_stats[22]));
-    all_stats.emplace_back(countHammingUndetectableErrors<24>(all_stats[23]));
-    all_stats.emplace_back(countHammingUndetectableErrors<25>(all_stats[24]));
-    all_stats.emplace_back(countHammingUndetectableErrors<26>(all_stats[25]));
-    all_stats.emplace_back(countHammingUndetectableErrors<27>(all_stats[26]));
-    all_stats.emplace_back(countHammingUndetectableErrors<28>(all_stats[27]));
-    all_stats.emplace_back(countHammingUndetectableErrors<29>(all_stats[28]));
-    all_stats.emplace_back(countHammingUndetectableErrors<30>(all_stats[29]));
-    all_stats.emplace_back(countHammingUndetectableErrors<31>(all_stats[30]));
-    all_stats.emplace_back(countHammingUndetectableErrors<32>(all_stats[31]));
-    all_stats.emplace_back(countHammingUndetectableErrors<33>(all_stats[32]));
-    all_stats.emplace_back(countHammingUndetectableErrors<34>(all_stats[33]));
-    all_stats.emplace_back(countHammingUndetectableErrors<35>(all_stats[34]));
-    all_stats.emplace_back(countHammingUndetectableErrors<36>(all_stats[35]));
-    all_stats.emplace_back(countHammingUndetectableErrors<37>(all_stats[36]));
-    all_stats.emplace_back(countHammingUndetectableErrors<38>(all_stats[37]));
-    all_stats.emplace_back(countHammingUndetectableErrors<39>(all_stats[38]));
-    all_stats.emplace_back(countHammingUndetectableErrors<40>(all_stats[39]));
+
+    // all_stats.emplace_back(0, 0, 0, 0, 1);
+    // all_stats.emplace_back(countHammingUndetectableErrors<1>(all_stats[0])); // all stats are zero-initialized
+    // all_stats.emplace_back(countHammingUndetectableErrors<2>(all_stats[1])); // now stats[0] is all set-up
+    // all_stats.emplace_back(countHammingUndetectableErrors<3>(all_stats[2]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<4>(all_stats[3]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<5>(all_stats[4]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<6>(all_stats[5]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<7>(all_stats[6]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<8>(all_stats[7]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<9>(all_stats[8]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<10>(all_stats[9]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<11>(all_stats[10]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<12>(all_stats[11]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<13>(all_stats[12]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<14>(all_stats[13]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<15>(all_stats[14]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<16>(all_stats[15]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<17>(all_stats[16]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<18>(all_stats[17]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<19>(all_stats[18]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<20>(all_stats[19]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<21>(all_stats[20]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<22>(all_stats[21]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<23>(all_stats[22]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<24>(all_stats[23]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<25>(all_stats[24]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<26>(all_stats[25]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<27>(all_stats[26]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<28>(all_stats[27]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<29>(all_stats[28]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<30>(all_stats[29]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<31>(all_stats[30]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<32>(all_stats[31]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<33>(all_stats[32]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<34>(all_stats[33]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<35>(all_stats[34]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<36>(all_stats[35]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<37>(all_stats[36]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<38>(all_stats[37]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<39>(all_stats[38]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<40>(all_stats[39]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<41>(all_stats[40]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<42>(all_stats[41]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<43>(all_stats[42]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<44>(all_stats[43]));
+    // all_stats.emplace_back(countHammingUndetectableErrors<45>(all_stats[44]));
+
+    // shortcut for > 24/18 Hamming
+    all_stats.emplace_back(18, 6);
+    auto & current = *all_stats.rbegin();
+    current.counts[0] = 1ull;
+    current.counts[1] = 0ull;
+    current.counts[2] = 0ull;
+    current.counts[3] = 63ull;
+    current.counts[4] = 315ull;
+    current.counts[5] = 1008ull;
+    current.counts[6] = 3024ull;
+    current.counts[7] = 7813ull;
+    current.counts[8] = 15626ull;
+    current.counts[9] = 25200ull;
+    current.counts[10] = 35280ull;
+    current.counts[11] = 42742ull;
+    current.counts[12] = 42742ull;
+    current.counts[13] = 35280ull;
+    current.counts[14] = 25200ull;
+    current.counts[15] = 15626ull;
+    current.counts[16] = 7813ull;
+    current.counts[17] = 3024ull;
+    current.counts[18] = 1008ull;
+    current.counts[19] = 315ull;
+    current.counts[20] = 63ull;
+    current.counts[21] = 0ull;
+    current.counts[22] = 0ull;
+    current.counts[23] = 1ull;
+    current.counts[24] = 0ull;
+    all_stats.emplace_back(countHammingUndetectableErrors<19>(current));
+
+    // shortcut for > 52/45 Hamming
+    all_stats.emplace_back(45, 7);
+    auto & current2 = *all_stats.rbegin();
+    current2.counts[0] = 1ull;
+    current2.counts[1] = 0ull;
+    current2.counts[2] = 0ull;
+    current2.counts[3] = 345ull;
+    current2.counts[4] = 4124ull;
+    current2.counts[5] = 36464ull;
+    current2.counts[6] = 279728ull;
+    current2.counts[7] = 1810860ull;
+    current2.counts[8] = 9958794ull;
+    current2.counts[9] = 47525856ull;
+    current2.counts[10] = 199611872ull;
+    current2.counts[11] = 744198314ull;
+    current2.counts[12] = 2480653244ull;
+    current2.counts[13] = 7441434096ull;
+    current2.counts[14] = 20198190768ull;
+    current2.counts[15] = 49823376620ull;
+    current2.counts[16] = 112102585767ull;
+    current2.counts[17] = 230797293696ull;
+    current2.counts[18] = 435950443648ull;
+    current2.counts[19] = 757180371807ull;
+    current2.counts[20] = 1211488613496ull;
+    current2.counts[21] = 1788383666400ull;
+    current2.counts[22] = 2438704969568ull;
+    current2.counts[23] = 3074893760792ull;
+    current2.counts[24] = 3587376076652ull;
+    current2.counts[25] = 3874361181504ull;
+    current2.counts[26] = 3874361181504ull;
+    current2.counts[27] = 3587376076652ull;
+    current2.counts[28] = 3074893760792ull;
+    current2.counts[29] = 2438704969568ull;
+    current2.counts[30] = 1788383666400ull;
+    current2.counts[31] = 1211488613496ull;
+    current2.counts[32] = 757180371807ull;
+    current2.counts[33] = 435950443648ull;
+    current2.counts[34] = 230797293696ull;
+    current2.counts[35] = 112102585767ull;
+    current2.counts[36] = 49823376620ull;
+    current2.counts[37] = 20198190768ull;
+    current2.counts[38] = 7441434096ull;
+    current2.counts[39] = 2480653244ull;
+    current2.counts[40] = 744198314ull;
+    current2.counts[41] = 199611872ull;
+    current2.counts[42] = 47525856ull;
+    current2.counts[43] = 9958794ull;
+    current2.counts[44] = 1810860ull;
+    current2.counts[45] = 279728ull;
+    current2.counts[46] = 36464ull;
+    current2.counts[47] = 4124ull;
+    current2.counts[48] = 345ull;
+    current2.counts[49] = 0;
+    current2.counts[50] = 0;
+    current2.counts[51] = 1ull;
+    current2.counts[52] = 0;
+    all_stats.emplace_back(countHammingUndetectableErrors<46>(current2));
+    all_stats.emplace_back(countHammingUndetectableErrors<47>(*all_stats.rbegin()));
 
     return 0;
 }

@@ -23,16 +23,14 @@
 
 Statistics::Statistics(
         size_t numDataBits,
-        size_t numHammingBits,
-        size_t numCodeBits,
-        boost::multiprecision::uint128_t numCodeWords,
-        size_t numCounts)
+        size_t numHammingBits)
         : numDataBits(numDataBits),
           numHammingBits(numHammingBits),
-          numCodeBits(numCodeBits),
-          numCodeWords(numCodeWords),
-          numCounts(numCounts),
-          counts(new boost::multiprecision::uint128_t[numCounts]) {
+          numCodeBits(numDataBits + numHammingBits),
+          numCodeWords(1),
+          numCounts(numCodeBits + 1),
+          counts(new counts_t[numCounts]) {
+    numCodeWords <<= numDataBits;
     for (size_t i = 0; i < numCounts; ++i) {
         this->counts[i] = 0;
     }
@@ -41,19 +39,14 @@ Statistics::Statistics(
 Statistics::Statistics(
         size_t numDataBits,
         size_t numHammingBits,
-        size_t numCodeBits,
-        boost::multiprecision::uint128_t numCodeWords,
-        size_t numCounts,
-        boost::multiprecision::uint128_t * counts,
-        boost::multiprecision::uint128_t * ext_counts,
-        boost::multiprecision::uint128_t * cor_counts,
-        boost::multiprecision::uint128_t * act_counts)
+        counts_t * counts)
         : numDataBits(numDataBits),
           numHammingBits(numHammingBits),
-          numCodeBits(numCodeBits),
-          numCodeWords(numCodeWords),
-          numCounts(numCounts),
-          counts(new boost::multiprecision::uint128_t[numCounts]) {
+          numCodeBits(numDataBits + numHammingBits),
+          numCodeWords(1),
+          numCounts(numCodeBits + 1),
+          counts(new counts_t[numCounts]) {
+    numCodeWords <<= numDataBits;
     for (size_t i = 0; i < numCounts; ++i) {
         this->counts[i] = counts[i];
     }
@@ -62,19 +55,14 @@ Statistics::Statistics(
 Statistics::Statistics(
         size_t numDataBits,
         size_t numHammingBits,
-        size_t numCodeBits,
-        boost::multiprecision::uint128_t numCodeWords,
-        size_t numCounts,
-        uint64_t * counts,
-        uint64_t * ext_counts,
-        uint64_t * cor_counts,
-        uint64_t * act_counts)
+        uint64_t * counts)
         : numDataBits(numDataBits),
           numHammingBits(numHammingBits),
-          numCodeBits(numCodeBits),
-          numCodeWords(numCodeWords),
-          numCounts(numCounts),
-          counts(new boost::multiprecision::uint128_t[numCounts]) {
+          numCodeBits(numDataBits + numHammingBits),
+          numCodeWords(1),
+          numCounts(numCodeBits + 1),
+          counts(new counts_t[numCounts]) {
+    numCodeWords <<= numDataBits;
     for (size_t i = 0; i < numCounts; ++i) {
         this->counts[i] = counts[i];
     }
@@ -83,16 +71,14 @@ Statistics::Statistics(
 Statistics::Statistics(
         size_t numDataBits,
         size_t numHammingBits,
-        size_t numCodeBits,
-        boost::multiprecision::uint128_t numCodeWords,
-        size_t numCounts,
         uint32_t * counts)
         : numDataBits(numDataBits),
           numHammingBits(numHammingBits),
-          numCodeBits(numCodeBits),
-          numCodeWords(numCodeWords),
-          numCounts(numCounts),
-          counts(new boost::multiprecision::uint128_t[numCounts]) {
+          numCodeBits(numDataBits + numHammingBits),
+          numCodeWords(1),
+          numCounts(numCodeBits + 1),
+          counts(new counts_t[numCounts]) {
+    numCodeWords <<= numDataBits;
     for (size_t i = 0; i < numCounts; ++i) {
         this->counts[i] = counts[i];
     }
@@ -101,16 +87,14 @@ Statistics::Statistics(
 Statistics::Statistics(
         size_t numDataBits,
         size_t numHammingBits,
-        size_t numCodeBits,
-        boost::multiprecision::uint128_t numCodeWords,
-        size_t numCounts,
         uint16_t * counts)
         : numDataBits(numDataBits),
           numHammingBits(numHammingBits),
-          numCodeBits(numCodeBits),
-          numCodeWords(numCodeWords),
-          numCounts(numCounts),
-          counts(new boost::multiprecision::uint128_t[numCounts]) {
+          numCodeBits(numDataBits + numHammingBits),
+          numCodeWords(1),
+          numCounts(numCodeBits + 1),
+          counts(new counts_t[numCounts]) {
+    numCodeWords <<= numDataBits;
     for (size_t i = 0; i < numCounts; ++i) {
         this->counts[i] = counts[i];
     }
@@ -119,18 +103,14 @@ Statistics::Statistics(
 Statistics::Statistics(
         size_t numDataBits,
         size_t numHammingBits,
-        size_t numCodeBits,
-        boost::multiprecision::uint128_t numCodeWords,
-        size_t numCounts,
-        uint8_t * counts,
-        uint8_t * ext_counts,
-        uint8_t * act_counts)
+        uint8_t * counts)
         : numDataBits(numDataBits),
           numHammingBits(numHammingBits),
-          numCodeBits(numCodeBits),
-          numCodeWords(numCodeWords),
-          numCounts(numCounts),
-          counts(new boost::multiprecision::uint128_t[numCounts]) {
+          numCodeBits(numDataBits + numHammingBits),
+          numCodeWords(1),
+          numCounts(numCodeBits + 1),
+          counts(new counts_t[numCounts]) {
+    numCodeWords <<= numDataBits;
     for (size_t i = 0; i < numCounts; ++i) {
         this->counts[i] = counts[i];
     }

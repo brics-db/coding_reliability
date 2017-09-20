@@ -28,69 +28,43 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 struct Statistics {
-    typedef boost::multiprecision::uint128_t counts_t;
+    typedef boost::multiprecision::uint256_t counts_t;
 
     const size_t numDataBits;
     const size_t numHammingBits;
     const size_t numCodeBits;
-    const counts_t numCodeWords;
+    counts_t numCodeWords;
     const size_t numCounts;
     std::unique_ptr<counts_t[]> counts;
 
     Statistics(
             size_t numDataBits,
-            size_t numHammingBits,
-            size_t numCodeBits,
-            boost::multiprecision::uint128_t numCodeWords,
-            size_t numCounts);
+            size_t numHammingBits);
 
     Statistics(
             size_t numDataBits,
             size_t numHammingBits,
-            size_t numCodeBits,
-            boost::multiprecision::uint128_t numCodeWords,
-            size_t numCounts,
-            boost::multiprecision::uint128_t * counts,
-            boost::multiprecision::uint128_t * ext_counts,
-            boost::multiprecision::uint128_t * cor_counts,
-            boost::multiprecision::uint128_t * act_counts);
+            counts_t * counts);
 
     Statistics(
             size_t numDataBits,
             size_t numHammingBits,
-            size_t numCodeBits,
-            boost::multiprecision::uint128_t numCodeWords,
-            size_t numCounts,
-            uint64_t * counts,
-            uint64_t * ext_counts,
-            uint64_t * cor_counts,
-            uint64_t * act_counts);
+            uint64_t * counts);
 
     Statistics(
             size_t numDataBits,
             size_t numHammingBits,
-            size_t numCodeBits,
-            boost::multiprecision::uint128_t numCodeWords,
-            size_t numCounts,
             uint32_t * counts);
 
     Statistics(
             size_t numDataBits,
             size_t numHammingBits,
-            size_t numCodeBits,
-            boost::multiprecision::uint128_t numCodeWords,
-            size_t numCounts,
             uint16_t * counts);
 
     Statistics(
             size_t numDataBits,
             size_t numHammingBits,
-            size_t numCodeBits,
-            boost::multiprecision::uint128_t numCodeWords,
-            size_t numCounts,
-            uint8_t * counts,
-            uint8_t * ext_counts,
-            uint8_t * act_counts);
+            uint8_t * counts);
 
     Statistics(
             Statistics && other);

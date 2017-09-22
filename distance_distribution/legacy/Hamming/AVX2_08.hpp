@@ -114,6 +114,4 @@ struct SIMD<__m256i, uint8_t> {
     }
 };
 
-extern template struct SIMD<__m256i, uint8_t>;
-
 #endif /* __AVX2__ */

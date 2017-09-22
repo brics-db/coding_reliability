@@ -13,21 +13,17 @@
 // limitations under the License.
 
 /*
- * AVX2.hpp
+ * AVX512_64.cpp
  *
- *  Created on: 19.09.2017
+ *  Created on: 22.09.2017
  *      Author: Till Kolditz - Till.Kolditz@gmail.com
  */
 
-#pragma once
+#ifdef __AVX512F__
 
-#ifdef __AVX2__
+#include "AVX512_64.hpp"
 
-#include "AVX2_08.hpp"
-#include "AVX2_16.hpp"
-#include "AVX2_32.hpp"
-#include "AVX2_64.hpp"
+template
+struct SIMD<__m512i, uint64_t>;
 
-extern template struct SIMD<__m256i, uint8_t>;
-
-#endif /* __AVX2__ */
+#endif /* __AVX512F__ */

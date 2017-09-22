@@ -41,6 +41,7 @@ ADD_DEFINITIONS(-Wall)
 ADD_DEFINITIONS(-pedantic)
 ADD_DEFINITIONS(-march=native)
 #ADD_DEFINITIONS(-mavx2)
+#ADD_DEFINITIONS(-march=knl)
 ADD_DEFINITIONS(-Wno-ignored-attributes)
 ADD_DEFINITIONS(-Weffc++)
 

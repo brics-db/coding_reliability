@@ -27,6 +27,7 @@
 #include "Hamming/Scalar.hpp"
 #include "Hamming/SSE.hpp"
 #include "Hamming/AVX2.hpp"
+#include "Hamming/AVX512.hpp"
 #include "Util/Statistics.hpp"
 #include "Util/Binom.hpp"
 #include "Util/StopWatch.hpp"
@@ -54,7 +55,8 @@
 
 template<size_t ACTUAL_BITCNT_DATA>
 Statistics countHammingUndetectableErrors(
-        Statistics & former_stats) {
+        Statistics & former_stats,
+        bool allow_avx512 = true) {
     typedef typename ExtHamming<ACTUAL_BITCNT_DATA>::hamming_impl_t T;
     typedef typename T::accumulator_t accumulator_t;
     typedef typename T::data_t data_t;
@@ -127,6 +129,27 @@ Statistics countHammingUndetectableErrors(
 #pragma omp critical
             {
                 std::cout << omp_get_thread_num() << ": x=" << x << " max=" << max << std::endl;
+            }
+#endif
+
+#ifdef __AVX512F__
+            if (allow_avx512 && (ACTUAL_BITCNT_DATA > 32)) {
+                typedef uint64_t data_t; // temporarily overwrite the definition, because we only implemented 64-bit AVX-512 procedures. all others are fast enough.
+                typedef SIMD<__m512i, data_t> simd_t;
+                const constexpr size_t values_per_mm512 = sizeof(__m512i) / sizeof(data_t);
+                auto mm512 = simd_t::set_inc(x, 1);
+                auto mm512inc = simd_t::set1(values_per_mm512);
+
+                if (max >= values_per_mm512) {
+                    for (; x <= (max - values_per_mm512); x += values_per_mm512) {
+                        auto popcount = simd_t::count_hamming(mm512);
+                        auto * pPopcount = reinterpret_cast<data_t*>(&popcount);
+                        for (size_t i = 0; i < values_per_mm512; ++i) {
+                            counts_local[pPopcount[i]]++;
+                        }
+                        mm512 = simd_t::add(mm512, mm512inc);
+                    }
+                }
             }
 #endif
 
@@ -361,94 +384,117 @@ int main() {
     // all_stats.emplace_back(countHammingUndetectableErrors<44>(all_stats[43]));
     // all_stats.emplace_back(countHammingUndetectableErrors<45>(all_stats[44]));
 
-    // shortcut for > 24/18 Hamming
-    all_stats.emplace_back(18, 6);
+    // shortcut for > 40/33 Hamming
+    all_stats.emplace_back(33, 7);
     auto & current = *all_stats.rbegin();
     current.counts[0] = 1ull;
     current.counts[1] = 0ull;
     current.counts[2] = 0ull;
-    current.counts[3] = 63ull;
-    current.counts[4] = 315ull;
-    current.counts[5] = 1008ull;
-    current.counts[6] = 3024ull;
-    current.counts[7] = 7813ull;
-    current.counts[8] = 15626ull;
-    current.counts[9] = 25200ull;
-    current.counts[10] = 35280ull;
-    current.counts[11] = 42742ull;
-    current.counts[12] = 42742ull;
-    current.counts[13] = 35280ull;
-    current.counts[14] = 25200ull;
-    current.counts[15] = 15626ull;
-    current.counts[16] = 7813ull;
-    current.counts[17] = 3024ull;
-    current.counts[18] = 1008ull;
-    current.counts[19] = 315ull;
-    current.counts[20] = 63ull;
-    current.counts[21] = 0ull;
-    current.counts[22] = 0ull;
-    current.counts[23] = 1ull;
-    current.counts[24] = 0ull;
-    all_stats.emplace_back(countHammingUndetectableErrors<19>(current));
+    current.counts[3] = 183ull;
+    current.counts[4] = 1519ull;
+    current.counts[5] = 9184ull;
+    current.counts[6] = 50848ull;
+    current.counts[7] = 241417ull;
+    current.counts[8] = 962980ull;
+    current.counts[9] = 3303520ull;
+    current.counts[10] = 9917216ull;
+    current.counts[11] = 26196668ull;
+    current.counts[12] = 61144076ull;
+    current.counts[13] = 126915936ull;
+    current.counts[14] = 235665696ull;
+    current.counts[15] = 392853972ull;
+    current.counts[16] = 589257342ull;
+    current.counts[17] = 797081568ull;
+    current.counts[18] = 974277536ull;
+    current.counts[19] = 1077087634ull;
+    current.counts[20] = 1077087634ull;
+    current.counts[21] = 974277536ull;
+    current.counts[22] = 797081568ull;
+    current.counts[23] = 589257342ull;
+    current.counts[24] = 392853972ull;
+    current.counts[25] = 235665696ull;
+    current.counts[26] = 126915936ull;
+    current.counts[27] = 61144076ull;
+    current.counts[28] = 26196668ull;
+    current.counts[29] = 9917216ull;
+    current.counts[30] = 3303520ull;
+    current.counts[31] = 962980ull;
+    current.counts[32] = 241417ull;
+    current.counts[33] = 50848ull;
+    current.counts[34] = 9184ull;
+    current.counts[35] = 1519ull;
+    current.counts[36] = 183ull;
+    current.counts[37] = 0ull;
+    current.counts[38] = 0ull;
+    current.counts[39] = 1ull;
+    current.counts[40] = 0ull;
+    all_stats.emplace_back(countHammingUndetectableErrors<34>(current));
+    all_stats.emplace_back(countHammingUndetectableErrors<34>(current, false));
+
+    for (int i = 0; i <= 41; ++i) {
+        if (all_stats[1].counts[i] != all_stats[2].counts[i]) {
+            std::cerr << i << ": AVX2(" << all_stats[1].counts[i] << ") != AVX512(" << all_stats[1].counts[i] << ")" << std::endl;
+        }
+    }
 
     // shortcut for > 52/45 Hamming
-    all_stats.emplace_back(45, 7);
-    auto & current2 = *all_stats.rbegin();
-    current2.counts[0] = 1ull;
-    current2.counts[1] = 0ull;
-    current2.counts[2] = 0ull;
-    current2.counts[3] = 345ull;
-    current2.counts[4] = 4124ull;
-    current2.counts[5] = 36464ull;
-    current2.counts[6] = 279728ull;
-    current2.counts[7] = 1810860ull;
-    current2.counts[8] = 9958794ull;
-    current2.counts[9] = 47525856ull;
-    current2.counts[10] = 199611872ull;
-    current2.counts[11] = 744198314ull;
-    current2.counts[12] = 2480653244ull;
-    current2.counts[13] = 7441434096ull;
-    current2.counts[14] = 20198190768ull;
-    current2.counts[15] = 49823376620ull;
-    current2.counts[16] = 112102585767ull;
-    current2.counts[17] = 230797293696ull;
-    current2.counts[18] = 435950443648ull;
-    current2.counts[19] = 757180371807ull;
-    current2.counts[20] = 1211488613496ull;
-    current2.counts[21] = 1788383666400ull;
-    current2.counts[22] = 2438704969568ull;
-    current2.counts[23] = 3074893760792ull;
-    current2.counts[24] = 3587376076652ull;
-    current2.counts[25] = 3874361181504ull;
-    current2.counts[26] = 3874361181504ull;
-    current2.counts[27] = 3587376076652ull;
-    current2.counts[28] = 3074893760792ull;
-    current2.counts[29] = 2438704969568ull;
-    current2.counts[30] = 1788383666400ull;
-    current2.counts[31] = 1211488613496ull;
-    current2.counts[32] = 757180371807ull;
-    current2.counts[33] = 435950443648ull;
-    current2.counts[34] = 230797293696ull;
-    current2.counts[35] = 112102585767ull;
-    current2.counts[36] = 49823376620ull;
-    current2.counts[37] = 20198190768ull;
-    current2.counts[38] = 7441434096ull;
-    current2.counts[39] = 2480653244ull;
-    current2.counts[40] = 744198314ull;
-    current2.counts[41] = 199611872ull;
-    current2.counts[42] = 47525856ull;
-    current2.counts[43] = 9958794ull;
-    current2.counts[44] = 1810860ull;
-    current2.counts[45] = 279728ull;
-    current2.counts[46] = 36464ull;
-    current2.counts[47] = 4124ull;
-    current2.counts[48] = 345ull;
-    current2.counts[49] = 0;
-    current2.counts[50] = 0;
-    current2.counts[51] = 1ull;
-    current2.counts[52] = 0;
-    all_stats.emplace_back(countHammingUndetectableErrors<46>(current2));
-    all_stats.emplace_back(countHammingUndetectableErrors<47>(*all_stats.rbegin()));
+    // all_stats.emplace_back(45, 7);
+    // auto & current2 = *all_stats.rbegin();
+    // current2.counts[0] = 1ull;
+    // current2.counts[1] = 0ull;
+    // current2.counts[2] = 0ull;
+    // current2.counts[3] = 345ull;
+    // current2.counts[4] = 4124ull;
+    // current2.counts[5] = 36464ull;
+    // current2.counts[6] = 279728ull;
+    // current2.counts[7] = 1810860ull;
+    // current2.counts[8] = 9958794ull;
+    // current2.counts[9] = 47525856ull;
+    // current2.counts[10] = 199611872ull;
+    // current2.counts[11] = 744198314ull;
+    // current2.counts[12] = 2480653244ull;
+    // current2.counts[13] = 7441434096ull;
+    // current2.counts[14] = 20198190768ull;
+    // current2.counts[15] = 49823376620ull;
+    // current2.counts[16] = 112102585767ull;
+    // current2.counts[17] = 230797293696ull;
+    // current2.counts[18] = 435950443648ull;
+    // current2.counts[19] = 757180371807ull;
+    // current2.counts[20] = 1211488613496ull;
+    // current2.counts[21] = 1788383666400ull;
+    // current2.counts[22] = 2438704969568ull;
+    // current2.counts[23] = 3074893760792ull;
+    // current2.counts[24] = 3587376076652ull;
+    // current2.counts[25] = 3874361181504ull;
+    // current2.counts[26] = 3874361181504ull;
+    // current2.counts[27] = 3587376076652ull;
+    // current2.counts[28] = 3074893760792ull;
+    // current2.counts[29] = 2438704969568ull;
+    // current2.counts[30] = 1788383666400ull;
+    // current2.counts[31] = 1211488613496ull;
+    // current2.counts[32] = 757180371807ull;
+    // current2.counts[33] = 435950443648ull;
+    // current2.counts[34] = 230797293696ull;
+    // current2.counts[35] = 112102585767ull;
+    // current2.counts[36] = 49823376620ull;
+    // current2.counts[37] = 20198190768ull;
+    // current2.counts[38] = 7441434096ull;
+    // current2.counts[39] = 2480653244ull;
+    // current2.counts[40] = 744198314ull;
+    // current2.counts[41] = 199611872ull;
+    // current2.counts[42] = 47525856ull;
+    // current2.counts[43] = 9958794ull;
+    // current2.counts[44] = 1810860ull;
+    // current2.counts[45] = 279728ull;
+    // current2.counts[46] = 36464ull;
+    // current2.counts[47] = 4124ull;
+    // current2.counts[48] = 345ull;
+    // current2.counts[49] = 0;
+    // current2.counts[50] = 0;
+    // current2.counts[51] = 1ull;
+    // current2.counts[52] = 0;
+    // all_stats.emplace_back(countHammingUndetectableErrors<46>(current2));
+    // all_stats.emplace_back(countHammingUndetectableErrors<47>(*all_stats.rbegin()));
 
     return 0;
 }

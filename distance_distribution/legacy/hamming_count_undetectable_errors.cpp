@@ -145,7 +145,24 @@ Statistics countHammingUndetectableErrors(
                         auto popcount = simd_t::count_hamming(mm512);
                         auto * pPopcount = reinterpret_cast<data_t*>(&popcount);
                         for (size_t i = 0; i < values_per_mm512; ++i) {
-                            counts_local[pPopcount[i]]++;
+                            if (pPopcount[i] > BITCNT_CODEWORD) {
+#pragma omp critical
+                                {
+                                    std::cerr << "AVX512: x=";
+                                    switch (i) {
+                                        case 0 : std::cerr << _mm512_extract_epi64(mm512, 0); break;
+                                        case 1 : std::cerr << _mm512_extract_epi64(mm512, 1); break;
+                                        case 2 : std::cerr << _mm512_extract_epi64(mm512, 2); break;
+                                        case 3 : std::cerr << _mm512_extract_epi64(mm512, 3); break;
+                                        case 4 : std::cerr << _mm512_extract_epi64(mm512, 4); break;
+                                        case 5 : std::cerr << _mm512_extract_epi64(mm512, 5); break;
+                                        case 6 : std::cerr << _mm512_extract_epi64(mm512, 6); break;
+                                        case 7 : std::cerr << _mm512_extract_epi64(mm512, 7); break;
+                                    }
+                                    std::cerr << " popcount=" << pPopcount[i] << std::endl;
+                                }
+                                ++counts_local[pPopcount[i]];
+                            }
                         }
                         mm512 = simd_t::add(mm512, mm512inc);
                     }

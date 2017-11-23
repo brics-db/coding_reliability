@@ -2,3 +2,4 @@ build
 /.settings
 xor_checksums/popcnt_code_histograms
 xor_checksums/pascals_triangle
+xor_checksums/print_latex_code

@@ -28,6 +28,9 @@
  * numbers of data words (from 1 to 8).
  */
 
+std::vector<std::vector<size_t>> PascalTriangle = { {1}, {1, 1}, {1, 2, 1}, {1, 3, 3, 1}, {1, 4, 6, 4, 1}, {1, 5, 10, 10, 5, 1}, {1, 6, 15, 20, 15, 6, 1}, {1, 7, 21, 35, 35, 21, 7, 1}, {1, 8, 28, 56,
+        70, 56, 28, 8, 1}};
+
 std::vector<std::vector<std::vector<size_t>>> triangles = { { {1, 0, 1}, {1, 0, 3, 0}, {1, 0, 6, 0, 1}, {1, 0, 10, 0, 5, 0}, {1, 0, 15, 0, 15, 0, 1}, {1, 0, 21, 0, 35, 0, 7, 0}, {1, 0, 28, 0, 70, 0,
         28, 0, 1, }, {1, 0, 36, 0, 126, 0, 84, 0, 9, 0}}, { {1, 0, 2, 0, 1}, {1, 0, 6, 0, 9, 0, 0}, {1, 0, 12, 0, 38, 0, 12, 0, 1}, {1, 0, 20, 0, 110, 0, 100, 0, 25, 0, 0}, {1, 0, 30, 0, 255, 0, 452,
         0, 255, 0, 30, 0, 1}, {1, 0, 42, 0, 511, 0, 1484, 0, 1519, 0, 490, 0, 49, 0, 0}, {1, 0, 56, 0, 924, 0, 3976, 0, 6470, 0, 3976, 0, 924, 0, 56, 0, 1}, {1, 0, 72, 0, 1548, 0, 9240, 0, 21942, 0,
@@ -56,89 +59,200 @@ std::vector<std::vector<std::vector<size_t>>> triangles = { { {1, 0, 1}, {1, 0, 
         3029547258864, 0, 10042992371016, 0, 24389430403536, 0, 43834381407036, 0, 58670892322704, 0, 58666946478984, 0, 43831904516784, 0, 24392524459599, 0, 10043743769784, 0, 3028347825876, 0,
         659133648936, 0, 101536684434, 0, 10737627624, 0, 739057284, 0, 29760696, 0, 531441, 0, 0, 0, 0, 0, 0}}};
 
+void print_triangle_odd_increase(
+        const std::vector<std::vector<size_t>> & triangle,
+        const size_t num_layers,
+        const size_t first_layer_num,
+        const size_t increase) {
+    // for odd increases we need staggered alignment
+    // 1) print all column specifiers
+    const size_t max = 2 * triangle[num_layers - 1].size() + 2;
+    for (size_t i = 0; i < max; ++i) {
+        std::cout << " c";
+    }
+    std::cout << "}\n";
+
+    // 2) force column widths
+    std::cout << "        ~";
+    for (size_t i = 0; i < max; ++i) {
+        std::cout << " & ~";
+    }
+    std::cout << " \\\\\n";
+
+    // 3) print header lines
+    std::cout << "        \\toprule\n";
+    const size_t columns_spanned_for_diagonal_headings = (num_layers - 1) * increase + 1;
+    // 3.A) first header line with the top most diagonal headings
+    std::cout << "        & \\multicolumn{" << (1 + columns_spanned_for_diagonal_headings) << "}{l}{\\(\\llbracket\\mathbb{C}\\rrbracket\\)}";
+    for (size_t i = 0; i < triangle[0].size(); ++i) {
+        std::cout << " & \\multicolumn{2}{c}{" << i << "}";
+    }
+    std::cout << " \\\\\n";
+    // 3.B) second header line with the arrows and a diagonal heading at the end
+    std::cout << "        \\(\\#\\mathbb{D}\\) & \\multicolumn{" << columns_spanned_for_diagonal_headings << "}{l}{}";
+    for (size_t i = 0; i < triangle[0].size(); ++i) {
+        std::cout << " & \\multicolumn{2}{c}{\\(\\swarrow\\)}";
+    }
+    std::cout << " & \\multicolumn{2}{c}{\\(" << triangle[0].size() << "\\)} \\\\\n";
+    // 3.C) a rule up to the last arrow
+    const size_t last_column_for_long_rule = columns_spanned_for_diagonal_headings + triangle[0].size() * 2;
+    std::cout << "        \\cmidrule{1-" << last_column_for_long_rule << "}\n";
+    // 4) the content lines
+    size_t num_layer = 0;
+    size_t diagonal_counter = triangle[0].size();
+    for (const auto & layer : triangle) {
+        ++num_layer;
+        std::cout << "        " << (num_layer - 1 + first_layer_num);
+        const size_t num_columns_skipped = (num_layers - num_layer) * increase;
+        if (num_columns_skipped > 5) {
+            std::cout << " & \\multicolumn{" << num_columns_skipped << "}{l}{}";
+        } else {
+            for (size_t i = 0; i < num_columns_skipped; ++i) {
+                std::cout << " &";
+            }
+        }
+        for (const auto weight : layer) {
+            std::cout << " & \\multicolumn{2}{c}{" << weight << "}";
+        }
+        if (num_layer < num_layers) {
+            std::cout << " & \\multicolumn{2}{|c}{\\(\\swarrow\\)}";
+            if (num_layer < (num_layers - 1)) {
+                ++diagonal_counter;
+                if (increase - 1) {
+                    std::cout << " & \\multicolumn{" << (increase - 1) << "}{c}{}";
+                }
+                std::cout << " & \\multicolumn{2}{c}{\\(" << diagonal_counter << "\\)}";
+            }
+        }
+        const size_t column_rule = last_column_for_long_rule + (num_layer - 1) * increase + 1;
+        std::cout << " \\\\\n";
+        if (num_layer < num_layers) {
+            std::cout << "        \\cmidrule{" << column_rule << "-" << (column_rule + increase - 1) << "}\n";
+        }
+    }
+}
+
+void print_triangle_even_increase(
+        const std::vector<std::vector<size_t>> & triangle,
+        const size_t num_layers,
+        const size_t first_layer_num,
+        const size_t increase) {
+    // for even increase, the numbers will be below each other
+    // 1) print all column specifiers
+    const size_t max = triangle[num_layers - 1].size() + 2;
+    for (size_t i = 0; i < max; ++i) {
+        std::cout << " c";
+    }
+    std::cout << "}\n";
+
+    // 2) force column widths
+    std::cout << "        ~";
+    for (size_t i = 0; i < max; ++i) {
+        std::cout << " & ~";
+    }
+    std::cout << " \\\\\n";
+
+    // 3) print header lines
+    std::cout << "        \\toprule\n";
+    const size_t columns_spanned_for_diagonal_headings = (num_layers - 1) * increase + 1;
+    // 3.A) first header line with the top most diagonal headings
+    std::cout << "        & \\multicolumn{" << (1 + columns_spanned_for_diagonal_headings) << "}{l}{\\(\\llbracket\\mathbb{C}\\rrbracket\\)}";
+    for (size_t i = 0; i < triangle[0].size(); ++i) {
+        std::cout << " & \\multicolumn{2}{c}{" << i << "}";
+    }
+    std::cout << " \\\\\n";
+    // 3.B) second header line with the arrows and a diagonal heading at the end
+    std::cout << "        \\(\\#\\mathbb{D}\\) & \\multicolumn{" << columns_spanned_for_diagonal_headings << "}{l}{}";
+    for (size_t i = 0; i < triangle[0].size(); ++i) {
+        std::cout << " & \\multicolumn{2}{c}{\\(\\swarrow\\)}";
+    }
+    std::cout << " & \\multicolumn{2}{c}{\\(" << triangle[0].size() << "\\)} \\\\\n";
+    // 3.C) a rule up to the last arrow
+    const size_t last_column_for_long_rule = columns_spanned_for_diagonal_headings + triangle[0].size() * 2;
+    std::cout << "        \\cmidrule{1-" << last_column_for_long_rule << "}\n";
+    // 4) the content lines
+    size_t num_layer = 0;
+    size_t diagonal_counter = triangle[0].size();
+    for (const auto & layer : triangle) {
+        ++num_layer;
+        std::cout << "        " << (num_layer - 1 + first_layer_num);
+        const size_t num_columns_skipped = (num_layers - num_layer) * increase;
+        if (num_columns_skipped > 5) {
+            std::cout << " & \\multicolumn{" << num_columns_skipped << "}{l}{}";
+        } else {
+            for (size_t i = 0; i < num_columns_skipped; ++i) {
+                std::cout << " &";
+            }
+        }
+        for (const auto weight : layer) {
+            std::cout << " & \\multicolumn{2}{c}{" << weight << "}";
+        }
+        if (num_layer < num_layers) {
+            std::cout << " & \\multicolumn{2}{|c}{\\(\\swarrow\\)}";
+            if (num_layer < (num_layers - 1)) {
+                ++diagonal_counter;
+                if (increase - 1) {
+                    std::cout << " & \\multicolumn{" << (increase - 1) << "}{c}{}";
+                }
+                std::cout << " & \\multicolumn{2}{c}{\\(" << diagonal_counter << "\\)}";
+            }
+        }
+        const size_t column_rule = last_column_for_long_rule + (num_layer - 1) * increase + 1;
+        std::cout << " \\\\\n";
+        if (num_layer < num_layers) {
+            std::cout << "        \\cmidrule{" << column_rule << "-" << (column_rule + increase - 1) << "}\n";
+        }
+    }
+}
+
+void print_header() {
+    std::cout << "\\begin{table}%\n"
+            "    \\centering\n"
+            "    \\footnotesize\n"
+            "    \\begin{tabular}{c";
+}
+
+void print_footer(
+        const size_t size_checksum) {
+    std::cout << "        \\bottomrule\n"
+            "    \\end{tabular}\n"
+            "    \\caption{Weight distribution triangle for " << size_checksum << "-bit checksums.}\n"
+            "    \\label{tab:XOR:WeightDistribution:triangle:" << size_checksum << "-bit}\n"
+            "\\end{table}\n\n\n\n\n\n";
+    // "        ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~\n"
+}
+
+void print_footer(
+        const char * const str_caption,
+        const char * const str_label) {
+    std::cout << "        \\bottomrule\n"
+            "    \\end{tabular}\n"
+            "    \\caption{" << str_caption << "}\n"
+            "    \\label{" << str_label << "}\n"
+            "\\end{table}\n\n\n\n\n\n";
+    // "        ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~\n"
+}
+
 int main() {
+    print_header();
+    print_triangle_odd_increase(PascalTriangle, PascalTriangle.size(), 0, 1);
+    print_footer("The first 9 rows of the Pascal Triangle.", "tab:PascalTriangle:triangle");
+
     size_t size_checksum = 0;
     for (const auto & triangle : triangles) {
-        const size_t num_layers = triangle.size();
         ++size_checksum;
-        std::cout << "\\begin{table}%\n"
-                "    \\centering\n"
-                "    \\footnotesize\n"
-                "    \\begin{tabular}{c";
-        const size_t increase = triangle[num_layers - 1].size() - triangle[num_layers - 2].size();
-        if (increase & 0x1) { // for odd increases we need staggered alignment
-            // first, print all column specifiers
-            const size_t max = 2 * triangle[num_layers - 1].size() + 2;
-            for (size_t i = 0; i < max; ++i) {
-                std::cout << " c";
-            }
-            std::cout << "}\n";
 
-            // force column widths
-            std::cout << "        ~";
-            for (size_t i = 0; i < max; ++i) {
-                std::cout << " & ~";
-            }
-            std::cout << " \\\\\n";
+        print_header();
 
-            // go on
-            std::cout << "        \\toprule\n";
-            const size_t columns_spanned_for_diagonal_headings = (num_layers - 1) * increase + 1;
-            // first header line with the top most diagonal headings
-            std::cout << "        & \\multicolumn{" << (1 + columns_spanned_for_diagonal_headings) << "}{l}{\\(\\llbracket\\mathbb{C}\\rrbracket\\)}";
-            for (size_t i = 0; i < triangle[0].size(); ++i) {
-                std::cout << " & \\multicolumn{2}{c}{" << i << "}";
-            }
-            std::cout << " \\\\\n";
-            // second header line with the arrows
-            std::cout << "        \\(\\#\\mathbb{D}\\) & \\multicolumn{" << columns_spanned_for_diagonal_headings << "}{l}{}";
-            for (size_t i = 0; i < triangle[0].size(); ++i) {
-                std::cout << " & \\multicolumn{2}{c}{\\(\\swarrow\\)}";
-            }
-            std::cout << " & \\multicolumn{2}{c}{\\(" << triangle[0].size() << "\\)} \\\\\n";
-            const size_t last_column_for_long_rule = columns_spanned_for_diagonal_headings + triangle[0].size() * 2;
-            std::cout << "        \\cmidrule{1-" << last_column_for_long_rule << "}\n";
-            size_t num_layer = 0;
-            size_t diagonal_counter = triangle[0].size();
-            for (const auto & layer : triangle) {
-                ++num_layer;
-                std::cout << "        " << num_layer;
-                const size_t num_columns_skipped = (num_layers - num_layer) * increase;
-                if (num_columns_skipped > 5) {
-                    std::cout << " & \\multicolumn{" << num_columns_skipped << "}{l}{}";
-                } else {
-                    for (size_t i = 0; i < num_columns_skipped; ++i) {
-                        std::cout << " &";
-                    }
-                }
-                for (const auto weight : layer) {
-                    std::cout << " & \\multicolumn{2}{c}{" << weight << "}";
-                }
-                if (num_layer < num_layers) {
-                    std::cout << " & \\multicolumn{2}{|c}{\\(\\swarrow\\)}";
-                    if (num_layer < (num_layers - 1)) {
-                        ++diagonal_counter;
-                        if (increase - 1) {
-                            std::cout << " & \\multicolumn{" << (increase - 1) << "}{c}{}";
-                        }
-                        std::cout << " & \\multicolumn{2}{c}{\\(" << diagonal_counter << "\\)}";
-                    }
-                }
-                const size_t column_rule = last_column_for_long_rule + (num_layer - 1) * increase + 1;
-                std::cout << " \\\\\n";
-                if (num_layer < num_layers) {
-                    std::cout << "        \\cmidrule{" << column_rule << "-" << (column_rule + increase - 1) << "}\n";
-                }
-            }
-        } else { // for even increase, the numbers will be below each other
+        const size_t num_layers = triangle.size();
+        const size_t increase = triangle[1].size() - triangle[0].size();
+        if (increase & 0x1) {
+            print_triangle_odd_increase(triangle, num_layers, 1, increase);
+        } else {
+            print_triangle_even_increase(triangle, num_layers, 1, increase);
         }
 
-        std::cout << "        \\bottomrule\n"
-        // "        ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~ & ~\n"
-                        "    \\end{tabular}\n"
-                        "    \\caption{Weight distribution triangle for " << size_checksum << "-bit checksums.}\n"
-                "    \\label{tab:XOR:WeightDistribution:triangle:" << size_checksum << "-bit}\n"
-                "\\end{table}\n\n\n\n\n\n";
+        print_footer(size_checksum);
     }
     return 0;
 }

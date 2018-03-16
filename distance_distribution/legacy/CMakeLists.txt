@@ -71,3 +71,4 @@ add_algorithm(hamming "hamming_count_undetectable_errors.cpp Util/Statistics.cpp
 Hamming/ExtHamming08.cpp Hamming/ExtHamming16.cpp Hamming/ExtHamming32.cpp Hamming/ExtHamming64.cpp \
 Hamming/SSE_08.cpp Hamming/SSE_16.cpp Hamming/SSE_32.cpp Hamming/SSE_64.cpp \
 Hamming/AVX2_08.cpp Hamming/AVX2_16.cpp Hamming/AVX2_32.cpp Hamming/AVX2_64.cpp")
+add_algorithm(example "example.cpp")

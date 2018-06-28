@@ -63,12 +63,18 @@ MACRO( add_algorithm target_name source_files )
     ADD_EXECUTABLE(${target_name} ${src_files})
     SET_PROPERTY(TARGET ${target_name} PROPERTY CXX_STANDARD 17)
     SET_PROPERTY(TARGET ${target_name} PROPERTY CXX_STANDARD_REQUIRED ON)
-    append_target_property(${target_name} "COMPILE_FLAGS" "${OpenMP_CXX_FLAGS}")
-    append_target_property(${target_name} "LINK_FLAGS" "${OpenMP_CXX_FLAGS}")
 ENDMACRO( add_algorithm )
 
-add_algorithm(hamming "hamming_count_undetectable_errors.cpp Util/Statistics.cpp Util/Binom.cpp Util/StopWatch.cpp Hamming/Scalar.cpp \
+MACRO( add_algorithm_OMP target_name source_files )
+	add_algorithm(${target_name} ${source_files})
+    append_target_property(${target_name} "COMPILE_FLAGS" "${OpenMP_CXX_FLAGS}")
+    append_target_property(${target_name} "LINK_FLAGS" "${OpenMP_CXX_FLAGS}")
+ENDMACRO( add_algorithm_OMP )
+
+add_algorithm_OMP(hamming "hamming_count_undetectable_errors.cpp Util/Statistics.cpp Util/Binom.cpp Util/StopWatch.cpp Hamming/Scalar.cpp \
 Hamming/ExtHamming08.cpp Hamming/ExtHamming16.cpp Hamming/ExtHamming32.cpp Hamming/ExtHamming64.cpp \
 Hamming/SSE_08.cpp Hamming/SSE_16.cpp Hamming/SSE_32.cpp Hamming/SSE_64.cpp \
 Hamming/AVX2_08.cpp Hamming/AVX2_16.cpp Hamming/AVX2_32.cpp Hamming/AVX2_64.cpp")
-add_algorithm(example "example.cpp")
+add_algorithm_OMP(ancoding_count_undetectable_errors "ancoding_count_undetectable_errors.cpp")
+add_algorithm_OMP(ancoding_count_undetectable_errors2 "ancoding_count_undetectable_errors2.cpp")
+add_algorithm(print_codeword_matrix "print_codeword_matrix.cpp")

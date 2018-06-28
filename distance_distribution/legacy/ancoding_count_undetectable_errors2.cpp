@@ -33,7 +33,7 @@ class StopWatch {
 	high_resolution_clock::time_point startNS, stopNS;
 
 public:
-	StopWatch() {
+	StopWatch() : startNS(std::chrono::nanoseconds(0)), stopNS(std::chrono::nanoseconds(0)) {
 	}
 
 	void start() {

@@ -62,11 +62,10 @@ void print_codeword_binary(
         size_t A) {
     if (n <= 64) {
         size_t cw = d * A;
-        for (size_t i = 0, mask = 1; i < n; ++i) {
+        for (size_t i = 0, mask = (1 << (n - 1)); i < n; ++i) {
             std::cout << ((cw & mask) != 0);
-            mask <<= 1;
+            mask >>= 1;
         }
-        std::cout << '\t';
     } else {
         THROW_ERROR("Unsupported data width " << n, __LINE__)
     }
@@ -79,15 +78,18 @@ void print_matrix_static(
         T k) {
     std::cout << "Settings: A=" << A << ". n=" << n << ". k=|A|=" << k << std::endl;
     const T d_max = static_cast<T>((1ull << k) - 1ull);
-    for (T d = 0; d <= d_max; ++d) {
-        std::cout << d << '\t';
+    std::cout << 0;
+    for (T d = 1; d <= d_max; ++d) {
+        std::cout << '\t' << d;
+    }
+    std::cout << '\n' << A;
+    for (T d = 1; d <= d_max; ++d) {
+        std::cout << '\t' << (d * A);
     }
     std::cout << '\n';
-    for (T d = 0; d <= d_max; ++d) {
-        std::cout << (d * A) << '\t';
-    }
-    std::cout << '\n';
-    for (T d = 0; d <= d_max; ++d) {
+    print_codeword_binary(n, 0, A);
+    for (T d = 1; d <= d_max; ++d) {
+        std::cout << '\t';
         print_codeword_binary(n, d, A);
     }
     std::cout << std::endl;
@@ -99,7 +101,7 @@ void print_matrix_static(
     std::cout << '\n';
     T dHmin = std::numeric_limits<T>::max();
     std::vector<std::pair<T, T>> pairs;
-    std::unique_ptr<uint16_t[]> histogram(new uint16_t[n + 1]);
+    std::unique_ptr<uint16_t[]> histogram(new uint16_t[n + 1] {});
     // uint16_t histogram[n + 1] {};
     for (T d1 = 0; d1 <= d_max; ++d1) {
         std::cout << (d1 * A);

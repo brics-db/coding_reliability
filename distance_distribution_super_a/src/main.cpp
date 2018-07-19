@@ -25,6 +25,8 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
+#include <iterator>
 
 Flags g_flags;
 
@@ -33,6 +35,7 @@ void print_help(){
          "\t-a NUM\t AN-coding algorithm with A=<NUM>\n"
          "\t-s NUM\t ... search super A beginning with NUM\n"
          "\t-S NUM\t ... search super A ending with NUM\n"
+         "\t-c NUM\t ... search super A by file which contains the candidates\n"
          "\t-m NUM\t 1-D grid approximation with NUM iterations\n"
          "\t-M NUM\t 2-D grid approximation with NUM iterations in second dimension\n"
          "\t-k NUM\t number of bits as input size\n"
@@ -63,6 +66,9 @@ void parse_cmdline(int argc, char** argv)
     }else if(strcmp(argv[i],"-S")==0){
       g_flags.search_super_A=1;
       g_flags.search_end=atoi(argv[i+1]);
+    }else if(strcmp(argv[i],"-c")==0){
+      g_flags.search_super_A=2;
+      g_flags.search_file=argv[i+1];
     }else if(strcmp(argv[i],"-m")==0){
       g_flags.with_grid = 1;
       g_flags.mc_iterations=atoi(argv[i+1]);
@@ -99,6 +105,11 @@ void parse_cmdline(int argc, char** argv)
     g_flags.search_start = g_flags.search_end;
   if(!g_flags.file_prefix)
     g_flags.file_prefix = "result";
+  if(g_flags.search_super_A==2) {
+    std::ifstream f(g_flags.search_file);
+    if(f.good()==false)
+      throw std::runtime_error("Candidates file does not exist.");
+  }
 }
 
 void getCUDADeviceInformations(std::ostream& info, int dev) {
@@ -156,6 +167,81 @@ void get_lowest_prob(uint128_t* counts, size_t count_counts, uint128_t& mincb, u
       break;
     }
   }
+}
+
+template<typename TList>
+void parse_candidates_file(const char* fname, TList& result) {
+  std::ifstream fp;
+  std::string tmp;
+  std::string token;
+  fp.open(fname);
+  while (!fp.eof()) {
+    getline(fp, tmp, '\n');
+    std::stringstream ss(tmp);
+    while (std::getline(ss, token, ',')) {
+      if(!token.empty()) {
+        uintll_t val = std::stoll(token);
+        if(val==0)
+          std::cerr << "Read A has value 0 [ignored].\n";
+        else
+          result.push_back(val);
+      }
+    }
+  }
+  fp.close();
+}
+
+double ancoding_search_super_A_by_file(std::stringstream& ss) {
+  uint128_t mincb = 0, mxmincb=static_cast<uint128_t>(-1), mxmincb2=static_cast<uint128_t>(-1);
+  uintll_t minb = 0, mxminb=0, mxminb2=0, superA = 0, superA2=0;
+  uintll_t n = g_flags.n;
+  double times[2] = {0};
+  double ttimes = 0;
+  uint128_t counts[COUNTS_MAX_WIDTH] = {0};
+  const char sep = ',';
+
+  std::vector<uintll_t> list_As;
+  parse_candidates_file(g_flags.search_file, list_As);
+
+  for(auto it=list_As.cbegin(); it!=list_As.cend(); ++it)
+  {
+    uintll_t A = *it;
+    uint_t h = floor(log(A)/log(2.0))+1;
+
+    if(g_flags.with_grid==0)
+      run_ancoding(A, h, g_flags, times, counts);
+    else
+      run_ancoding_grid(A, h, g_flags, times, counts);
+
+    get_lowest_prob(counts, n+h+1, mincb, minb);
+
+    if(mxminb<minb || (mxminb==minb && mxmincb>mincb))
+    {
+      mxminb=minb;
+      mxmincb=mincb;
+      superA = A;
+    }
+    if(mxminb2<minb || (mxminb2==minb && mxmincb2>mincb))
+    {
+      mxminb2=minb;
+      mxmincb2=mincb;
+      superA2 = A;
+    }
+    ttimes += times[1];
+
+    process_result(ss, A, h, g_flags, times, counts);
+    ss << sep << mxminb << sep << mxmincb << sep << superA
+       << sep << mxminb2 << sep << mxmincb2 << sep << superA2;
+    ss << "\n";
+
+    if( ((A+1) & ~A) == (A+1) ) // is A+1 power-of-two? (A+2 will be in a new ²-class)
+    {
+      mxmincb2=static_cast<uint128_t>(-1);
+      mxminb2=0;
+      superA2=0;
+    }
+  }
+  return ttimes;
 }
 
 double ancoding_search_super_A(std::stringstream& ss)
@@ -257,10 +343,17 @@ int main(int argc, char** argv)
   header(ss);
   ss<<"\n";
 
-  if(g_flags.search_super_A)
+  if(g_flags.search_super_A==1)
   {
     sprintf(fname,"%s_k%u_a%u-%u.csv",g_flags.file_prefix, g_flags.n, g_flags.search_start, g_flags.search_end );
     ttimes = ancoding_search_super_A(ss);
+  }
+  else if(g_flags.search_super_A==2)
+  {
+    std::string tmp ( g_flags.search_file );
+    std::replace(tmp.begin(), tmp.end(), '/', '_');
+    sprintf(fname,"%s_k%u_c_%s.csv",g_flags.file_prefix, g_flags.n, tmp.c_str() );
+    ttimes = ancoding_search_super_A_by_file(ss);
   }
   else if(g_flags.with_grid)
   {

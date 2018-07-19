@@ -35,6 +35,7 @@ struct Flags {
   uintll_t search_start = 0;
   uintll_t search_end = 0;
   int nr_dev = 0;
+  int dev = -1;
   int verbose = 0;
   const char* file_prefix = nullptr;
 };

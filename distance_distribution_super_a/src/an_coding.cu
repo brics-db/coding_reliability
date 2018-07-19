@@ -110,21 +110,24 @@ struct Caller
     static constexpr uint_t unroll_factor = 16;
     uintll_t Aend = A<<n;
     uint_t ccmax = n+h+1;
-    CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferShared) );
-    CHECK_ERROR( cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte) );
-    if(ccmax<=16)
-      dancoding_shared<blocksize, 16, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
-    else if(ccmax<=24)
-      dancoding_shared<blocksize, 24, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
-    else if(ccmax<=32)
-      dancoding_shared<blocksize, 32, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
-    else if(ccmax<=48)
-      dancoding_shared<blocksize, 48, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
-    else if(ccmax<=64)
-      dancoding_shared<blocksize, 64, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
-    else
-      throw std::runtime_error("Not supported");
-
+    if(n<4) {
+      dancoding<32, uint_t><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
+    }else{
+      CHECK_ERROR( cudaDeviceSetCacheConfig(cudaFuncCachePreferShared) );
+      CHECK_ERROR( cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte) );
+      if(ccmax<=16)
+        dancoding_shared<blocksize, 16, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
+      else if(ccmax<=24)
+        dancoding_shared<blocksize, 24, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
+      else if(ccmax<=32)
+        dancoding_shared<blocksize, 32, uint_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
+      else if(ccmax<=48)
+        dancoding_shared<blocksize, 48, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
+      else if(ccmax<=64)
+        dancoding_shared<blocksize, 64, uintll_t, unroll_factor ><<< blocks, blocksize >>>(n, A, counts, offset, end, Aend);
+      else
+        throw std::runtime_error("Not supported");
+    }
   }
 };
 
@@ -151,30 +154,35 @@ void run_ancoding(uintll_t A, uint_t h, Flags& flags, double* times, uint128_t* 
   uint_t n = flags.n;
   const uintll_t count_messages = (1ull << n);
   const uint_t count_counts = n + h + 1;
-
   uintll_t** dcounts;
   uintll_t** hcounts;
   dcounts = new uintll_t*[nr_dev];
   hcounts = new uintll_t*[nr_dev];
-
+  int dev_offset;
 #pragma omp parallel for num_threads(nr_dev) schedule(static,1)
   for(int dev=0; dev<nr_dev; ++dev)
   {
+    if(flags.dev>=0) {
+      dev = flags.dev;
+      assert(nr_dev==1);
+      dev_offset = 0;
+    }else
+      dev_offset = dev;
     dim3 threads(128, 1, 1); // not used for kernel launch, see Caller
     dim3 blocks(1);
     uintll_t offset, end;
     int numSMs;
     CHECK_ERROR( cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, dev) );
-
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
-    CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
 
-    hcounts[dev] = new uintll_t[count_counts];
+    CHECK_ERROR( cudaMalloc(dcounts+dev_offset, count_counts*sizeof(uintll_t)) );
+    CHECK_ERROR( cudaMemset(dcounts[dev_offset], 0, count_counts*sizeof(uintll_t)) );
+
+    hcounts[dev_offset] = new uintll_t[count_counts];
     if(nr_dev>1) {
       // load balancer
-      double faca = 1.0 - sqrt( 1.0 - static_cast<double>(dev)/nr_dev );
-      double facb = 1.0 - sqrt( 1.0 - static_cast<double>(dev+1)/nr_dev );
+      double faca = 1.0 - sqrt( 1.0 - static_cast<double>(dev_offset)/nr_dev );
+      double facb = 1.0 - sqrt( 1.0 - static_cast<double>(dev_offset+1)/nr_dev );
       offset = ceil(count_messages * faca);
       end    = ceil(count_messages * facb);
     }else{
@@ -185,13 +193,14 @@ void run_ancoding(uintll_t A, uint_t h, Flags& flags, double* times, uint128_t* 
     // https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
     blocks.x = 128*numSMs;
 
-    if(dev==0)
+    if(dev_offset==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n, blocks, A, dcounts[dev], offset, end, h);
+    ANCoding::bridge<Caller>(n, blocks, A, dcounts[dev_offset], offset, end, h);
     CHECK_LAST("Kernel failed.");
+//    CHECK_ERROR(cudaStreamSynchronize(0));
 
-    if(dev==0)
+    if(dev_offset==0)
       results_gpu.stop(i_runtime);
 
   }

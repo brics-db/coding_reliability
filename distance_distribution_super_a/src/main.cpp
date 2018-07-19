@@ -1,3 +1,4 @@
+
 // Copyright 2016 Matthias Werner, Till Kolditz
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,6 +38,7 @@ void print_help(){
          "\t-k NUM\t number of bits as input size\n"
          "\t-f STR\t prefix of output file (parameters are added).\n"
          "\t-d NUM\t Number of GPUs to be used (0=max).\n"
+         "\t-i NUM\t GPU device index.\n"
          "\t-v NUM\t Verbosity level (0,1,2).\n"
          "\n");
 }
@@ -81,6 +83,13 @@ void parse_cmdline(int argc, char** argv)
       g_flags.nr_dev=atoi(argv[i+1]);
       assert(g_flags.nr_dev>=0);
     }
+    if(strcmp(argv[i],"-i")==0)
+    {
+      g_flags.dev=atoi(argv[i+1]);
+      assert(g_flags.dev>=0);
+      assert(g_flags.dev<g_flags.nr_dev);
+      g_flags.nr_dev = 1;
+    }
   }
   if(g_flags.with_grid==2 && g_flags.mc_iterations_2==0)
     g_flags.mc_iterations_2 = g_flags.mc_iterations;
@@ -111,12 +120,21 @@ void getCUDADeviceInformations(std::ostream& info, int dev) {
        << ", \"GPUClock [MHz]\", " << prop.clockRate/1000
        << ", \"CUDA Runtime\", " << runtimeVersion
     ;
+  if(g_flags.verbose==1) {
+    std::cout << dev << ": " << prop.name << "\n";
+  }
 }
 
 void header(std::ostream& ss)
 {
+  int dev = 0;
+  int end = g_flags.nr_dev;
+  if(g_flags.dev>=0) {
+    dev = g_flags.dev;
+    end = dev+1;
+  }
   // skip init time
-  for(int dev=0; dev < g_flags.nr_dev; ++dev)
+  for(; dev < end; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
     CHECK_ERROR( cudaDeviceSynchronize() );
@@ -129,7 +147,7 @@ void get_lowest_prob(uint128_t* counts, size_t count_counts, uint128_t& mincb, u
 {
   minb  = 0xFFFF;
   mincb = static_cast<uint128_t>(-1);
-  for(uint_t i=1; i<count_counts/2; ++i)
+  for(uint_t i=1; i<(count_counts+1)/2; ++i)
   {
     if(counts[i]!=0 && counts[i]<mincb)
     {
@@ -154,7 +172,7 @@ double ancoding_search_super_A(std::stringstream& ss)
 
   for(;A<=A_end; A+=2)
   {
-    uint_t h = ceil(log(A)/log(2.0));
+    uint_t h = floor(log(A)/log(2.0))+1;
 
     if(g_flags.with_grid==0)
       run_ancoding(A, h, g_flags, times, counts);
@@ -192,11 +210,42 @@ double ancoding_search_super_A(std::stringstream& ss)
   return ttimes;
 }
 
+void getDeviceInfos(int dev) {
+  cudaDeviceProp prop;
+  int runtimeVersion = 0;
+  size_t f=0, t=0;
+  CHECK_ERROR( cudaRuntimeGetVersion(&runtimeVersion) );
+  CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
+  CHECK_ERROR( cudaMemGetInfo(&f, &t) );
+  std::cout << '"' << prop.name << '"'
+       << ", \"CC\", " << prop.major << '.' << prop.minor
+       << ", \"PCI Bus ID\", " << prop.pciBusID
+       << ", \"PCI Device ID\", " << prop.pciDeviceID
+       << ", \"Multiprocessors\", "<< prop.multiProcessorCount
+       << ", \"Memory [MiB]\", "<< t/1048576
+       << ", \"MemoryFree [MiB]\", " << f/1048576
+       << ", \"ECC enabled\", " << prop.ECCEnabled
+       << ", \"MemClock [MHz]\", " << prop.memoryClockRate/1000
+       << ", \"GPUClock [MHz]\", " << prop.clockRate/1000
+       << ", \"CUDA Runtime\", " << runtimeVersion
+       << std::endl;
+    ;
+}
+
 int main(int argc, char** argv)
 {
   std::stringstream ss;
   char fname[256];
   double ttimes = 0;
+
+
+  int ndevs=0;
+  CHECK_ERROR( cudaGetDeviceCount( &ndevs ) );
+  if(ndevs==0)
+    throw std::runtime_error("No CUDA capable device found");
+
+  for(int i=0; i<ndevs; ++i)
+    getDeviceInfos(i);
 
   if(argc<2){
     print_help();

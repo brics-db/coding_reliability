@@ -208,40 +208,46 @@ void run_ancoding_grid(uintll_t A, uint_t h, Flags& flags, double* times, uint12
 
   dcounts = new uintll_t*[nr_dev];
   hcounts = new uintll_t*[nr_dev];
-
+  int dev_offset;
 #pragma omp parallel for num_threads(nr_dev) schedule(static,1)
   for(int dev=0; dev<nr_dev; ++dev)
   {
+    if(flags.dev>=0) {
+      dev = flags.dev;
+      assert(nr_dev==1);
+      dev_offset = 0;
+    }else
+      dev_offset = dev;
     dim3 threads(128, 1, 1);
     dim3 blocks;
     uintll_t offset, end;
     int numSMs;
     CHECK_ERROR( cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, dev) );
-
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
-    CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
+
+    CHECK_ERROR( cudaMalloc(dcounts+dev_offset, count_counts*sizeof(uintll_t)) );
+    CHECK_ERROR( cudaMemset(dcounts[dev_offset], 0, count_counts*sizeof(uintll_t)) );
 
 
-    hcounts[dev] = new uintll_t[count_counts];
+    hcounts[dev_offset] = new uintll_t[count_counts];
 
     //end = 0;
     //    offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
     //    end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
-    offset = iterations2 / nr_dev * dev;
-    end = iterations2 / nr_dev * (dev+1);
+    offset = iterations2 / nr_dev * dev_offset;
+    end = iterations2 / nr_dev * (dev_offset+1);
 
     blocks.x = 128*numSMs;
 
     // 3) Remainder of the slice
-    if(dev==0)
+    if(dev_offset==0)
       results_gpu.start(i_runtime);
 
-    ANCoding::bridge<Caller>(n, blocks, threads, flags.with_grid, A, dcounts[dev], offset, end, count_counts, 1.0*count_messages/iterations, 1.0*count_messages/iterations2, iterations);
+    ANCoding::bridge<Caller>(n, blocks, threads, flags.with_grid, A, dcounts[dev_offset], offset, end, count_counts, 1.0*count_messages/iterations, 1.0*count_messages/iterations2, iterations);
 
     CHECK_LAST("Kernel failed.");
 
-    if(dev==0) results_gpu.stop(i_runtime);
+    if(dev_offset==0) results_gpu.stop(i_runtime);
 
   }
 

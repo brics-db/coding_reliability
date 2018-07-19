@@ -60,9 +60,9 @@ void process_result(stringstream& ss,
 
   if(id==0) {
     ss << "id, k, A, h, A_2, m_1, m_2, hlen";
-    for(int i=1; i<cnts; ++i)
+    for(int i=1; i<=cnts; ++i)
       ss << ", p_" << i;
-    for(int i=1; i<cnts; ++i)
+    for(int i=1; i<=cnts; ++i)
       ss << ", hist_" << i;
     ss << ", t_kernel, t, sum, minb, mincb, superA, minb2, mincb2, superA2\n";
   }
@@ -80,7 +80,7 @@ void process_result(stringstream& ss,
     ;
   // density + histogram
 
-  for(uint_t i=1; i<cnts; ++i)
+  for(uint_t i=1; i<=cnts; ++i)
   {
     base2 = binomialCoeff( static_cast<long double>(n+h), static_cast<long double>(i) );
     base = base1 * base2;
@@ -89,7 +89,7 @@ void process_result(stringstream& ss,
     ss << sep << prob;
   }
 
-  for(uint_t i=1; i<cnts; ++i)
+  for(uint_t i=1; i<=cnts; ++i)
   {
     if(n>=32 && counts[i]>(uint128_t(1)<<64))
       ss << sep << setprecision(12) << static_cast<long double>(counts[i]);
@@ -101,6 +101,18 @@ void process_result(stringstream& ss,
     ss << sep << times[i];
 
   ss << sep << total;
+
+  if(flags.verbose==1) {
+    std::cout << "Kernel: " << times[0] << " s\n"
+              << "Runtime: " << times[1] << " s\n"
+              << flags.n
+              << sep << A
+              << sep << h
+              << sep << flags.mc_iterations
+              << sep << flags.mc_iterations_2
+              << "\n";
+
+  }
 }
 
 

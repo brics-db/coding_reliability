@@ -105,6 +105,11 @@ void parse_cmdline(int argc, char** argv)
     g_flags.search_start = g_flags.search_end;
   if(!g_flags.file_prefix)
     g_flags.file_prefix = "result";
+  if(g_flags.search_super_A==2) {
+    std::ifstream f(g_flags.search_file);
+    if(f.good()==false)
+      throw std::runtime_error("Candidates file does not exist.");
+  }
 }
 
 void getCUDADeviceInformations(std::ostream& info, int dev) {
@@ -345,7 +350,9 @@ int main(int argc, char** argv)
   }
   else if(g_flags.search_super_A==2)
   {
-    sprintf(fname,"%s_k%u_c_%s.csv",g_flags.file_prefix, g_flags.n, g_flags.search_file );
+    std::string tmp ( g_flags.search_file );
+    std::replace(tmp.begin(), tmp.end(), '/', '_');
+    sprintf(fname,"%s_k%u_c_%s.csv",g_flags.file_prefix, g_flags.n, tmp.c_str() );
     ttimes = ancoding_search_super_A_by_file(ss);
   }
   else if(g_flags.with_grid)

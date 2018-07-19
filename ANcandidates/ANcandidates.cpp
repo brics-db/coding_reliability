@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <vector>
 #include <array>
@@ -15,6 +16,7 @@
 #include <algorithm>
 #include <omp.h>
 #include <immintrin.h>
+#include <cstring>
 
 #ifdef __GNUC__
 #define popcount__ __builtin_popcountll
@@ -156,29 +158,101 @@ void worker(data_t & data, size_t bitWidthData, size_t bitWidthA, ssize_t curren
 	}
 }
 
+struct config_t {
+	size_t minBitWidthData;
+	size_t maxBitWidthData;
+	size_t minBitWidthA;
+	size_t maxBitWidthA;
+	
+	config_t() : minBitWidthData(0), maxBitWidthData(0), minBitWidthA(0), maxBitWidthA(0) {
+	}
+};
+
+void help(char * argv0) {
+	std::string basename(argv0);
+#ifdef _WIN32
+	size_t pos0 = basename.find_last_of('\\');
+#else
+	size_t pos0 = basename.find_last_of('/');
+#endif
+	if (pos0 == std::string::npos) {
+		pos0 = 0;
+	}
+	std::cout << "USAGE: " << basename.substr(pos0) << " -a|--Amin -A|--Amax -d|--dMin -D|--dMax\n"
+			"\n\t-? -h --help               Print this message."
+			"\n\t-a --Amin                  Minimum width of A [bits]."
+			"\n\t-A --Amax                  Maximum width of A [bits]."
+			"\n\t-d --Dmin                  Minimum data width [bits]."
+			"\n\t-D --Dmax                  Maximum data width [bits]." << std::endl;
+}
+
+int parseCmdArgs(int argc, char ** argv, config_t & config) {
+	for (size_t i = 1; i < argc; ++i) {
+		if ((std::strcmp(argv[i], "-h") == 0) || (std::strcmp(argv[i], "--help") == 0) || (std::strcmp(argv[i], "-?") == 0)) {
+			help(argv[0]);
+			return 255;
+		} else if ((std::strcmp(argv[i], "--Amin") == 0) || (std::strcmp(argv[i], "-a") == 0)) {
+			if (argc > i) {
+				config.minBitWidthA = std::strtoull(argv[++i], nullptr, 0);
+			} else {
+				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+				return 1;
+			}
+		} else if ((std::strcmp(argv[i], "--Amax") == 0) || (std::strcmp(argv[i], "-A") == 0)) {
+			if (argc > i) {
+				config.maxBitWidthA = std::strtoull(argv[++i], nullptr, 0);
+			} else {
+				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+				return 2;
+			}
+		} else if ((std::strcmp(argv[i], "--Dmin") == 0) || (std::strcmp(argv[i], "-d") == 0)) {
+			if (argc > i) {
+				config.minBitWidthData = std::strtoull(argv[++i], nullptr, 0);
+			} else {
+				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+				return 3;
+			}
+		} else if ((std::strcmp(argv[i], "--Dmax") == 0) || (std::strcmp(argv[i], "-D") == 0)) {
+			if (argc > i) {
+				config.maxBitWidthData = std::strtoull(argv[++i], nullptr, 0);
+			} else {
+				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+				return 4;
+			}
+		}
+	}
+	if (config.minBitWidthA == 0 || config.maxBitWidthA == 0 || config.minBitWidthData == 0 || config.maxBitWidthData == 0) {
+		help(argv[0]);
+		return 100;
+	}
+	return 0;
+}
+
 /*
  * Use the Symmetric Signed-Digit Representation With Base 2 to find the candidates for Super As
  * in a given inclusive range.
  */
-int main() {
-	constexpr const size_t minBitWidthData = 2ull;
-	constexpr const size_t maxBitWidthData = 18ull;
-	constexpr const size_t minBitWidthA = 2ull;
-	constexpr const size_t maxBitWidthA = 18ull;
-	constexpr const size_t numWidthsData = maxBitWidthData - minBitWidthData + 1ull;
-	constexpr const size_t numWidthsA = maxBitWidthA - minBitWidthA + 1ull;
-	constexpr const size_t maxCells = numWidthsData * numWidthsA;
+int main(int argc, char ** argv) {
+	config_t conf;
+	int ret = 0;
+	if (ret = parseCmdArgs(argc, argv, conf)) {
+		return ret;
+	}
+	
+	const size_t numWidthsData = conf.maxBitWidthData - conf.minBitWidthData + 1ull;
+	const size_t numWidthsA = conf.maxBitWidthA - conf.minBitWidthA + 1ull;
+	const size_t maxCells = numWidthsData * numWidthsA;
 
-	std::cout << "# bit width data = [" << minBitWidthData << ',' << maxBitWidthData << "]\n";
-	std::cout << "# bit width A = [" << minBitWidthA << ',' << maxBitWidthA << "]\n";
+	std::cout << "# bit width data = [" << conf.minBitWidthData << ',' << conf.maxBitWidthData << "]\n";
+	std::cout << "# bit width A = [" << conf.minBitWidthA << ',' << conf.maxBitWidthA << "]\n";
 	std::cout << "# n=|C|\tk=|D|\t|A|\t|SDR|\t|candidates|\tcandidates\n";
 
 	for (size_t cell = 0ull; cell < maxCells; ++cell) {
 		const size_t rowData = cell % numWidthsData;
 		const size_t colA = cell / numWidthsData;
 		data_t data;
-		const size_t bitWidthData = rowData + minBitWidthData;
-		const size_t bitWidthA = colA + minBitWidthA;
+		const size_t bitWidthData = rowData + conf.minBitWidthData;
+		const size_t bitWidthA = colA + conf.minBitWidthA;
 		const ssize_t minA = (0x1ll << (bitWidthA - 1ll)) + 1ll;
 		const ssize_t maxA = (0x1ll << bitWidthA) - 1ll;
 		const size_t numA = (maxA - minA) / 2ull + 1ull;

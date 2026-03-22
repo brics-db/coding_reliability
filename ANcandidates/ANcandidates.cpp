@@ -1,50 +1,50 @@
-/*
+// clang-format off
+/**
  * Compile e.g. with
  *   g++ -std=c++17 -O3 -march=native -o ANcandidates_d2-24_A2-24 ANcandidates.cpp -fopenmp -lpthread
  * Run e.g. with
  *   /usr/bin/time /bin/bash -c "OMP_THREAD_LIMIT=\$(nproc) ./ANcandidates_d2-24_A2-24 1>ANcandidates_d2-24_A2-24.out 2>ANcandidates_d2-24_A2-24.err"
  *   /usr/bin/time /bin/bash -c "OMP_THREAD_LIMIT=\$(echo \"\$(nproc)-2\"|bc) ./ANcandidates_d2-24_A2-24 1>ANcandidates_d2-24_A2-24.out 2>ANcandidates_d2-24_A2-24.err"
  */
+// clang-format on
 
-#include <iostream>
-#include <cstdint>
-#include <cstdlib>
-#include <limits>
-#include <vector>
-#include <array>
-#include <sstream>
-#include <algorithm>
-#include <omp.h>
 #include <immintrin.h>
+#include <omp.h>
+
+#include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include <limits>
+#include <sstream>
+#include <vector>
 
 #ifdef __GNUC__
 #define popcount__ __builtin_popcountll
 #endif
 
 struct data_t {
-	size_t lengthSignedDigitsRepresentation;
-	std::vector<ssize_t> elements;
-	data_t() : lengthSignedDigitsRepresentation(std::numeric_limits<size_t>::min()), elements() {
-		elements.reserve(64);
-	}
+  size_t lengthSignedDigitsRepresentation;
+  std::vector<ssize_t> elements;
+  data_t() : lengthSignedDigitsRepresentation(std::numeric_limits<size_t>::min()), elements() { elements.reserve(64); }
 };
 
 /**
  * This is the actual worker and computes the signed digit representation for a given code in a 4-unrolled loop.
  */
-void worker(data_t & data, size_t bitWidthData, size_t bitWidthA, ssize_t currentA) {
-	constexpr const size_t MAX_SSDR = std::numeric_limits<size_t>::max();
-	volatile auto lenShortestSignedDigitsRepresentation = MAX_SSDR;
-	ssize_t min = currentA;
-	const ssize_t max = ((0x1ll << bitWidthData) - 1ll) * currentA;
-	const size_t currentDataLengthSignedDigitsRepresentation = data.lengthSignedDigitsRepresentation;
-/*
-#ifdef __AVX512F__
-	if constexpr(sizeof(ssize_t) == 8) {
-		const ssize_t num = (max - min) / currentA;
-		constexpr const size_t numSSIZEperM512 = sizeof(__m512i) / sizeof(ssize_t);
-		const size_t numMM512 = (num / numSSIZEperM512) / 2; // we will unroll the loop twice
+void worker(data_t& data, size_t bitWidthData, size_t bitWidthA, ssize_t currentA) {
+  constexpr const size_t MAX_SSDR = std::numeric_limits<size_t>::max();
+  volatile auto lenShortestSignedDigitsRepresentation = MAX_SSDR;
+  ssize_t min = currentA;
+  const ssize_t max = ((0x1ll << bitWidthData) - 1ll) * currentA;
+  const size_t currentDataLengthSignedDigitsRepresentation = data.lengthSignedDigitsRepresentation;
+  // clang-format off
+  /*
+  #ifdef __AVX512F__
+          if constexpr(sizeof(ssize_t) == 8) {
+                  const ssize_t num = (max - min) / currentA;
+                constexpr const size_t numSSIZEperM512 = sizeof(__m512i) / sizeof(ssize_t);
+                const size_t numMM512 = (num / numSSIZEperM512) / 2; // we will unroll the loop twice
 		auto mm512_current = _mm512_set_epi64(8 * currentA, 7 * currentA, 6 * currentA, 5 * currentA, 4 * currentA, 3 * currentA, 2 * currentA, 1 * currentA);
 		auto mm512_incA = _mm512_set1_epi64(numSSIZEperM512 * currentA);
 		for (size_t i = 0; i < numMM512; ++i) { // we already account for two mm operations in computation of numMM512
@@ -55,38 +55,38 @@ void worker(data_t & data, size_t bitWidthData, size_t bitWidthA, ssize_t curren
 			bool noEarlyBreak = true;
 			auto pMM = reinterpret_cast<ssize_t*>(&mm1);
 			auto popcnt0 = popcount__(pMM[0]);
-			auto popcnt1 = popcount__(pMM[1]);
-			auto popcnt2 = popcount__(pMM[2]);
-			auto popcnt3 = popcount__(pMM[3]);
-			auto popcnt4 = popcount__(pMM[4]);
-			auto popcnt5 = popcount__(pMM[5]);
-			auto popcnt6 = popcount__(pMM[6]);
-			auto popcnt7 = popcount__(pMM[7]);
-			pMM = reinterpret_cast<ssize_t*>(&mm2);
-			auto popcnt8 = popcount__(pMM[8]);
-			auto popcnt9 = popcount__(pMM[9]);
-			auto popcnt10 = popcount__(pMM[10]);
-			auto popcnt11 = popcount__(pMM[11]);
-			auto popcnt12 = popcount__(pMM[12]);
-			auto popcnt13 = popcount__(pMM[13]);
-			auto popcnt14 = popcount__(pMM[14]);
-			auto popcnt15 = popcount__(pMM[15]);
+                          auto popcnt1 = popcount__(pMM[1]);
+                          auto popcnt2 = popcount__(pMM[2]);
+                          auto popcnt3 = popcount__(pMM[3]);
+                          auto popcnt4 = popcount__(pMM[4]);
+                          auto popcnt5 = popcount__(pMM[5]);
+                          auto popcnt6 = popcount__(pMM[6]);
+                          auto popcnt7 = popcount__(pMM[7]);
+                          pMM = reinterpret_cast<ssize_t*>(&mm2);
+                          auto popcnt8 = popcount__(pMM[8]);
+                          auto popcnt9 = popcount__(pMM[9]);
+                          auto popcnt10 = popcount__(pMM[10]);
+                          auto popcnt11 = popcount__(pMM[11]);
+                          auto popcnt12 = popcount__(pMM[12]);
+                          auto popcnt13 = popcount__(pMM[13]);
+                          auto popcnt14 = popcount__(pMM[14]);
+                          auto popcnt15 = popcount__(pMM[15]);
 			size_t popcnt = std::min({popcnt0, popcnt1, popcnt2, popcnt3, popcnt4, popcnt5, popcnt6, popocnt7, popcnt8,
 				popcnt9, popcnt10, popcnt11, popcnt12, popcnt13, popcnt14, popcnt15});
 			if (popcnt < lenShortestSignedDigitsRepresentation) {
 				lenShortestSignedDigitsRepresentation = popcnt;
 				noEarlyBreak = popcnt >= currentDataLengthSignedDigitsRepresentation;
-			}
-			if (!noEarlyBreak) {
-				break;
-			}
-		}
+                          }
+                          if (!noEarlyBreak) {
+                                  break;
+                          }
+                  }
 		min = _mm256_extract_epi64(_mm512_extracti64x4_epi64(mm512_current, 0), 0) + currentA; // to start with next number in the scalar loop
-	}
-#endif
-#ifdef __AVX2__
-	if constexpr(sizeof(ssize_t) == 8) {
-		const ssize_t num = (max - min) / currentA;
+          }
+  #endif
+  #ifdef __AVX2__
+          if constexpr(sizeof(ssize_t) == 8) {
+                  const ssize_t num = (max - min) / currentA;
 		constexpr const size_t numSSIZEperM256 = sizeof(__m256i) / sizeof(ssize_t);
 		const size_t numMM256 = (num / numSSIZEperM256) / 2; // we will unroll the loop twice
 		auto mm256_current = _mm256_set_epi64x(4 * currentA, 3 * currentA, 2 * currentA, 1 * currentA);
@@ -111,181 +111,191 @@ void worker(data_t & data, size_t bitWidthData, size_t bitWidthA, ssize_t curren
 			if (popcnt < lenShortestSignedDigitsRepresentation) {
 				lenShortestSignedDigitsRepresentation = popcnt;
 				noEarlyBreak = popcnt >= currentDataLengthSignedDigitsRepresentation;
-			}
-			if (!noEarlyBreak) {
-				break;
-			}
-		}
+                          }
+                          if (!noEarlyBreak) {
+                                  break;
+                          }
+                  }
 		min = _mm256_extract_epi64(mm256_current, 0); // to start with next number in the scalar loop
-	}
-#endif
-*/
-	const auto factorA = 4 * currentA;
-	ssize_t current = min;
-	size_t tmp[2]{lenShortestSignedDigitsRepresentation, 0};
-	while ((current <= (max - factorA)) && (tmp[0] >= currentDataLengthSignedDigitsRepresentation)) {
-		auto current0 = current;
-		auto popcnt0 = popcount__(current0 ^ (3ll * current0));
-		auto current1 = current0 + currentA;
-		auto popcnt1 = popcount__(current1 ^ (3ll * current1));
-		auto current2 = current1 + currentA;
-		auto popcnt2 = popcount__(current2 ^ (3ll * current2));
-		auto current3 = current2 + currentA;
-		auto popcnt3 = popcount__(current3 ^ (3ll * current3));
-		current += factorA;
-		size_t popcnt = std::min({popcnt0, popcnt1, popcnt2, popcnt3});
-		tmp[1] = popcnt;
-		tmp[0] = tmp[popcnt < tmp[0]];
-	}
-	for (; (current <= max) && (tmp[0] >= currentDataLengthSignedDigitsRepresentation); current += currentA) {
-		size_t popcnt = popcount__(current ^ (3ll * current));
-		tmp[1] = popcnt;
-		tmp[0] = tmp[popcnt < tmp[0]];
-	}
+          }
+  #endif
+  */
+  // clang-format on
+  const auto factorA = 4 * currentA;
+  ssize_t current = min;
+  size_t tmp[2]{lenShortestSignedDigitsRepresentation, 0};
+  while ((current <= (max - factorA)) && (tmp[0] >= currentDataLengthSignedDigitsRepresentation)) {
+    auto current0 = current;
+    auto popcnt0 = popcount__(current0 ^ (3ll * current0));
+    auto current1 = current0 + currentA;
+    auto popcnt1 = popcount__(current1 ^ (3ll * current1));
+    auto current2 = current1 + currentA;
+    auto popcnt2 = popcount__(current2 ^ (3ll * current2));
+    auto current3 = current2 + currentA;
+    auto popcnt3 = popcount__(current3 ^ (3ll * current3));
+    current += factorA;
+    size_t popcnt = std::min({popcnt0, popcnt1, popcnt2, popcnt3});
+    tmp[1] = popcnt;
+    tmp[0] = tmp[popcnt < tmp[0]];
+  }
+  for (; (current <= max) && (tmp[0] >= currentDataLengthSignedDigitsRepresentation); current += currentA) {
+    size_t popcnt = popcount__(current ^ (3ll * current));
+    tmp[1] = popcnt;
+    tmp[0] = tmp[popcnt < tmp[0]];
+  }
 
-	if ((tmp[0] != MAX_SSDR) && (tmp[0] >= data.lengthSignedDigitsRepresentation))
-	{ // only enter the following critical section iff we want to alter data
+  if ((tmp[0] != MAX_SSDR) && (tmp[0] >= data.lengthSignedDigitsRepresentation)) {
+    // only enter the following critical section iff we want to alter data
 #pragma omp critical
-		{
-			if (tmp[0] > data.lengthSignedDigitsRepresentation) {
-				data.lengthSignedDigitsRepresentation = tmp[0];
-				data.elements.clear();
-			}
-			if (tmp[0] == data.lengthSignedDigitsRepresentation) {
-				data.elements.push_back(currentA);
-			}
-		}
-	}
+    {
+      if (tmp[0] > data.lengthSignedDigitsRepresentation) {
+        data.lengthSignedDigitsRepresentation = tmp[0];
+        data.elements.clear();
+      }
+      if (tmp[0] == data.lengthSignedDigitsRepresentation) {
+        data.elements.push_back(currentA);
+      }
+    }
+  }
 }
 
 struct config_t {
-	size_t minBitWidthData;
-	size_t maxBitWidthData;
-	size_t minBitWidthA;
-	size_t maxBitWidthA;
-	
-	config_t() : minBitWidthData(0), maxBitWidthData(0), minBitWidthA(0), maxBitWidthA(0) {
-	}
+  size_t minBitWidthData;
+  size_t maxBitWidthData;
+  size_t minBitWidthA;
+  size_t maxBitWidthA;
+
+  config_t() : minBitWidthData(0), maxBitWidthData(0), minBitWidthA(0), maxBitWidthA(0) {}
 };
 
-void help(char * argv0) {
-	std::string basename(argv0);
+void help(char* argv0) {
+  std::string basename(argv0);
 #ifdef _WIN32
-	size_t pos0 = basename.find_last_of('\\');
+  size_t pos0 = basename.find_last_of('\\');
 #else
-	size_t pos0 = basename.find_last_of('/');
+  size_t pos0 = basename.find_last_of('/');
 #endif
-	if (pos0 == std::string::npos) {
-		pos0 = 0;
-	}
-	std::cout << "USAGE: " << basename.substr(pos0) << " -a|--Amin -A|--Amax -d|--dMin -D|--dMax\n"
-			"\n\t-? -h --help               Print this message."
-			"\n\t-a --Amin                  Minimum width of A [bits]."
-			"\n\t-A --Amax                  Maximum width of A [bits]."
-			"\n\t-d --Dmin                  Minimum data width [bits]."
-			"\n\t-D --Dmax                  Maximum data width [bits]." << std::endl;
+  if (pos0 == std::string::npos) {
+    pos0 = 0;
+  }
+  std::cout << "USAGE: " << basename.substr(pos0)
+            << " -a|--Amin -A|--Amax -d|--dMin -D|--dMax\n"
+               "\n\t-? -h --help               Print this message."
+               "\n\t-a --Amin                  Minimum width of A [bits]."
+               "\n\t-A --Amax                  Maximum width of A [bits]."
+               "\n\t-d --Dmin                  Minimum data width [bits]."
+               "\n\t-D --Dmax                  Maximum data width [bits]."
+            << std::endl;
 }
 
-int parseCmdArgs(int argc, char ** argv, config_t & config) {
-	for (size_t i = 1; i < argc; ++i) {
-		if ((std::strcmp(argv[i], "-h") == 0) || (std::strcmp(argv[i], "--help") == 0) || (std::strcmp(argv[i], "-?") == 0)) {
-			help(argv[0]);
-			return 255;
-		} else if ((std::strcmp(argv[i], "--Amin") == 0) || (std::strcmp(argv[i], "-a") == 0)) {
-			if (argc > i) {
-				config.minBitWidthA = std::strtoull(argv[++i], nullptr, 0);
-			} else {
-				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
-				return 1;
-			}
-		} else if ((std::strcmp(argv[i], "--Amax") == 0) || (std::strcmp(argv[i], "-A") == 0)) {
-			if (argc > i) {
-				config.maxBitWidthA = std::strtoull(argv[++i], nullptr, 0);
-			} else {
-				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
-				return 2;
-			}
-		} else if ((std::strcmp(argv[i], "--Dmin") == 0) || (std::strcmp(argv[i], "-d") == 0)) {
-			if (argc > i) {
-				config.minBitWidthData = std::strtoull(argv[++i], nullptr, 0);
-			} else {
-				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
-				return 3;
-			}
-		} else if ((std::strcmp(argv[i], "--Dmax") == 0) || (std::strcmp(argv[i], "-D") == 0)) {
-			if (argc > i) {
-				config.maxBitWidthData = std::strtoull(argv[++i], nullptr, 0);
-			} else {
-				std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
-				return 4;
-			}
-		}
-	}
-	if (config.minBitWidthA == 0 || config.maxBitWidthA == 0 || config.minBitWidthData == 0 || config.maxBitWidthData == 0) {
-		help(argv[0]);
-		return 100;
-	}
-	return 0;
+int parseCmdArgs(int argc, char** argv, config_t& config) {
+  for (size_t i = 1; i < argc; ++i) {
+    if ((std::strcmp(argv[i], "-h") == 0) || (std::strcmp(argv[i], "--help") == 0) ||
+        (std::strcmp(argv[i], "-?") == 0)) {
+      help(argv[0]);
+      return 255;
+    } else if ((std::strcmp(argv[i], "--Amin") == 0) || (std::strcmp(argv[i], "-a") == 0)) {
+      if (argc > i) {
+        config.minBitWidthA = std::strtoull(argv[++i], nullptr, 0);
+      } else {
+        std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+        return 1;
+      }
+    } else if ((std::strcmp(argv[i], "--Amax") == 0) || (std::strcmp(argv[i], "-A") == 0)) {
+      if (argc > i) {
+        config.maxBitWidthA = std::strtoull(argv[++i], nullptr, 0);
+      } else {
+        std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+        return 2;
+      }
+    } else if ((std::strcmp(argv[i], "--Dmin") == 0) || (std::strcmp(argv[i], "-d") == 0)) {
+      if (argc > i) {
+        config.minBitWidthData = std::strtoull(argv[++i], nullptr, 0);
+      } else {
+        std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+        return 3;
+      }
+    } else if ((std::strcmp(argv[i], "--Dmax") == 0) || (std::strcmp(argv[i], "-D") == 0)) {
+      if (argc > i) {
+        config.maxBitWidthData = std::strtoull(argv[++i], nullptr, 0);
+      } else {
+        std::cerr << "argument '" << argv[i] << "' requires an additional number!" << std::endl;
+        return 4;
+      }
+    }
+  }
+  if (config.minBitWidthA == 0 || config.maxBitWidthA == 0 || config.minBitWidthData == 0 ||
+      config.maxBitWidthData == 0) {
+    help(argv[0]);
+    return 100;
+  }
+  return 0;
 }
 
 /*
- * Use the Symmetric Signed-Digit Representation With Base 2 to find the candidates for Super As
- * in a given inclusive range.
+ * Use the Symmetric Signed-Digit Representation With Base 2 to find the candidates for Super As in a given inclusive
+ * range.
  */
-int main(int argc, char ** argv) {
-	config_t conf;
-	int ret = 0;
-	if (ret = parseCmdArgs(argc, argv, conf)) {
-		return ret;
-	}
-	
-	const size_t numWidthsData = conf.maxBitWidthData - conf.minBitWidthData + 1ull;
-	const size_t numWidthsA = conf.maxBitWidthA - conf.minBitWidthA + 1ull;
-	const size_t maxCells = numWidthsData * numWidthsA;
+int main(int argc, char** argv) {
+  config_t conf;
+  int ret = 0;
+  if ((ret = parseCmdArgs(argc, argv, conf))) {
+    return ret;
+  }
 
-	std::cout << "# bit width data = [" << conf.minBitWidthData << ',' << conf.maxBitWidthData << "]\n";
-	std::cout << "# bit width A = [" << conf.minBitWidthA << ',' << conf.maxBitWidthA << "]\n";
-	std::cout << "# n=|C|\tk=|D|\t|A|\t|SDR|\t|candidates|\tcandidates\n";
+  const size_t numWidthsData = conf.maxBitWidthData - conf.minBitWidthData + 1ull;
+  const size_t numWidthsA = conf.maxBitWidthA - conf.minBitWidthA + 1ull;
+  const size_t maxCells = numWidthsData * numWidthsA;
 
-	for (size_t cell = 0ull; cell < maxCells; ++cell) {
-		const size_t rowData = cell % numWidthsData;
-		const size_t colA = cell / numWidthsData;
-		data_t data;
-		const size_t bitWidthData = rowData + conf.minBitWidthData;
-		const size_t bitWidthA = colA + conf.minBitWidthA;
-		const ssize_t minA = (0x1ll << (bitWidthA - 1ll)) + 1ll;
-		const ssize_t maxA = (0x1ll << bitWidthA) - 1ll;
-		const size_t numA = (maxA - minA) / 2ull + 1ull;
-		const size_t numCombinations = numA * (0x1ll << bitWidthData);
+  std::cout << "# bit width data = [" << conf.minBitWidthData << ',' << conf.maxBitWidthData << "]\n";
+  std::cout << "# bit width A = [" << conf.minBitWidthA << ',' << conf.maxBitWidthA << "]\n";
+  std::cout << "# n=|C|\tk=|D|\t|A|\t|SDR|\t|candidates|\tcandidates\n";
 
+  for (size_t cell = 0ull; cell < maxCells; ++cell) {
+    const size_t rowData = cell % numWidthsData;
+    const size_t colA = cell / numWidthsData;
+    data_t data;
+    const size_t bitWidthData = rowData + conf.minBitWidthData;
+    const size_t bitWidthA = colA + conf.minBitWidthA;
+    const ssize_t minA = (0x1ll << (bitWidthA - 1ll)) + 1ll;
+    const ssize_t maxA = (0x1ll << bitWidthA) - 1ll;
+    const size_t numA = (maxA - minA) / 2ull + 1ull;
+    const size_t numCombinations = numA * (0x1ll << bitWidthData);
+
+    // clang-format off
 //		if ((bitWidthData == 28) && (bitWidthA == 17)) {
 //			std::cout << "# Skipping |D|=" << bitWidthData << " and |A|=" << bitWidthA << std::endl;
 //			continue;
 //		}
+    // clang-format on
 
-		if (numCombinations >= (0x1ull << 16ull)) { // from n=16 on, we use nested parallelization (the value is arbitrarily chosen)
+    if (numCombinations >= (0x1ull << 16ull)) {
+      // from n=16 on, we use nested parallelization (the value is arbitrarily chosen)
+      // nested parallel for (single nesting level)
 #pragma omp parallel for schedule(dynamic) shared(data)
-			for (ssize_t currentA = minA; currentA <= maxA; currentA += 2ull) {
-				worker(data, bitWidthData, bitWidthA, currentA);
-			} // nested parallel for (single nesting level)
-		} else { // not-paralleled inner loop for too small units
-			for (ssize_t currentA = minA; currentA <= maxA; currentA += 2ull) {
-				worker(data, bitWidthData, bitWidthA, currentA);
-			}
-		}
+      for (ssize_t currentA = minA; currentA <= maxA; currentA += 2ull) {
+        worker(data, bitWidthData, bitWidthA, currentA);
+      }
+    } else {
+      // not-paralleled inner loop for too small units
+      for (ssize_t currentA = minA; currentA <= maxA; currentA += 2ull) {
+        worker(data, bitWidthData, bitWidthA, currentA);
+      }
+    }
 
-		std::stringstream ss;
-		ss << (bitWidthData + bitWidthA) << '\t' << bitWidthData << '\t' << bitWidthA << '\t' << data.lengthSignedDigitsRepresentation << '\t' << data.elements.size() << '\t';
-		bool first = true;
-		for (auto A : data.elements) {
-			if (!first) {
-				ss << ',';
-			} else {
-				first = false;
-			}
-			ss << A;
-		}
-		ss << '\n';
-		std::cout << ss.str();
-	}
-} // main
+    std::stringstream ss;
+    ss << (bitWidthData + bitWidthA) << '\t' << bitWidthData << '\t' << bitWidthA << '\t'
+       << data.lengthSignedDigitsRepresentation << '\t' << data.elements.size() << '\t';
+    bool first = true;
+    for (auto A : data.elements) {
+      if (!first) {
+        ss << ',';
+      } else {
+        first = false;
+      }
+      ss << A;
+    }
+    ss << '\n';
+    std::cout << ss.str();
+  }
+}

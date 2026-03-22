@@ -21,16 +21,31 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+/**
+ * @brief Generic wrapper for CURAND random number generators.
+ * 
+ * Supports different generator types like Sobol and Scrambled Sobol.
+ * 
+ * @tparam RandGenType The CURAND state type.
+ */
 template<typename RandGenType>
 struct RandGen {
   RandGenType *devStates;
 
+  /**
+   * @brief Initializes the generator states on the GPU.
+   */
   void init(dim3 blocks, dim3 threads, uint_t offset, uint_t dim, uint_t dev);
+
+  /**
+   * @brief Frees GPU memory associated with the generator.
+   */
   void free();
 };
 
-/// -
-
+/**
+ * @brief Specialization for Sobol 32-bit generator.
+ */
 template<>
 struct RandGen<curandStateSobol32_t> {
   curandStateSobol32_t *devStates;
@@ -41,6 +56,9 @@ struct RandGen<curandStateSobol32_t> {
   void free();
 };
 
+/**
+ * @brief Specialization for Sobol 64-bit generator.
+ */
 template<>
 struct RandGen<curandStateSobol64_t> {
   curandStateSobol64_t *devStates;
@@ -51,6 +69,9 @@ struct RandGen<curandStateSobol64_t> {
   void free();
 };
 
+/**
+ * @brief Specialization for Scrambled Sobol 32-bit generator.
+ */
 template<>
 struct RandGen<curandStateScrambledSobol32_t> {
   curandStateScrambledSobol32_t *devStates;
@@ -62,10 +83,9 @@ struct RandGen<curandStateScrambledSobol32_t> {
   void free();
 };
 
-//typedef curandStateScrambledSobol32_t RAND_GEN;
+/**
+ * @brief Default random generator type for the project.
+ */
 typedef curandStateSobol32_t RAND_GEN;
-//typedef curandStateSobol64_t RAND_GEN;
-//typedef curandState_t RAND_GEN;
-
 
 #endif /* RAND_GEN_CUH_ */

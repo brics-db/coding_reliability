@@ -30,6 +30,9 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+/**
+ * @brief Device function to compute the Extended Hamming codeword.
+ */
 template<int N>
 __device__ inline uintll_t computeHamming(const uintll_t &value) {
   uintll_t hamming = 0;
@@ -37,43 +40,48 @@ __device__ inline uintll_t computeHamming(const uintll_t &value) {
   hamming |= (__popcll(value & 0x9B33366D) & 0x1) << 1;
   hamming |= (__popcll(value & 0xE3C3C78E) & 0x1) << 2;
   hamming |= (__popcll(value & 0x03FC07F0) & 0x1) << 3;
- if(N<16)
-  return (value << 4) | hamming;
- else // >=16
-  hamming |= (__popcll(value & 0x03FFF800) & 0x1) << 4;
- if(N<32)
-  return (value << 5) | hamming;
- else // >=32
-  hamming |= (__popcll(value & 0xFC000000) & 0x1) << 5;
+  if(N < 16)
+    return (value << 4) | hamming;
+  else // >= 16
+    hamming |= (__popcll(value & 0x03FFF800) & 0x1) << 4;
+  if(N < 32)
+    return (value << 5) | hamming;
+  else // >= 32
+    hamming |= (__popcll(value & 0xFC000000) & 0x1) << 5;
   return (value << 6) | hamming;
 }
 
-template<uintll_t N, uintll_t ShardSize,uint_t CountCounts, typename RandGenType>
+/**
+ * @brief CUDA kernel for Hamming-Coding Monte Carlo approximation.
+ */
+template<uintll_t N, uintll_t ShardSize, uint_t CountCounts, typename RandGenType>
 __global__
 void dhamming_mc(uintll_t* counts, uintll_t offset, uintll_t end, RandGenType *state)
 {
   uint_t tid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x);
   uintll_t shardXid = threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x) + offset;
-  if(shardXid>=end)
+  if(shardXid >= end)
     return;
 
   uintll_t counts_local[CountCounts] = { 0 };
 
   uintll_t x;
   RandGenType local_state = state[tid];
-  for(uintll_t k=0; k<ShardSize; ++k)
+  for(uintll_t k = 0; k < ShardSize; ++k)
   {
-    x = static_cast<uintll_t>( static_cast<double>(1ull<<N) * (1.0-curand_uniform_double(&local_state)));
+    // Sample random codeword
+    x = static_cast<uintll_t>( static_cast<double>(1ull << N) * (1.0 - curand_uniform_double(&local_state)));
     ++counts_local[ __popcll( computeHamming<N>( x ) ) ];
   }
   
-  for(int c=0; c<CountCounts; ++c)
-    atomicAdd(counts+c, counts_local[c]);
+  // Combine results into global histogram
+  for(int c = 0; c < CountCounts; ++c)
+    atomicAdd(counts + c, counts_local[c]);
   state[tid] = local_state;
 }
 
 /**
- * Caller for kernel 
+ * @brief Helper structure to launch the appropriate Hamming Monte Carlo kernel.
  */
 template<uintll_t N>
 struct Caller
@@ -84,12 +92,15 @@ struct Caller
   }
 };
 
+/**
+ * @brief Host function to run Hamming Monte Carlo distribution approximation.
+ */
 double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_output, int nr_dev_max)
 {
   int tmp_nr_dev;
   Statistics stats;
-  TimeStatistics results_cpu (&stats,CPU_WALL_TIME);
-  TimeStatistics results_gpu (&stats,GPU_TIME);
+  TimeStatistics results_cpu (&stats, CPU_WALL_TIME);
+  TimeStatistics results_gpu (&stats, GPU_TIME);
   int i_runtime = results_gpu.add("Kernel Runtime", "s");
   int i_totaltime = results_cpu.add("Total Runtime", "s");
   results_cpu.setFactorAll(0.001);
@@ -97,15 +108,17 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
   const int verbose = 1;
 
   CHECK_ERROR( cudaGetDeviceCount(&tmp_nr_dev) );
-  const int nr_dev = nr_dev_max==0 ? tmp_nr_dev : min(nr_dev_max,tmp_nr_dev);
-  cudaDeviceProp prop;
-  CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
-  if(verbose){
+  const int nr_dev = nr_dev_max == 0 ? tmp_nr_dev : min(nr_dev_max, tmp_nr_dev);
+  
+  if(verbose) {
+    cudaDeviceProp prop;
+    CHECK_ERROR( cudaGetDeviceProperties(&prop, 0));
     printf("Start Hamming-Coding Algorithm - Monte Carlo with %zu iterations\n", iterations);
     printf("Found %d CUDA devices (%s).\n", nr_dev, prop.name);
   }
-  // skip init time
-  for(int dev=0; dev<nr_dev; ++dev)
+
+  // Initialize devices
+  for(int dev = 0; dev < nr_dev; ++dev)
   {
     CHECK_ERROR( cudaSetDevice(dev) );
     CHECK_ERROR( cudaDeviceSynchronize() );
@@ -114,78 +127,63 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
   results_cpu.start(i_totaltime);
   const uintll_t count_messages = (1ull << n);
   const uintll_t size_shards = Hamming::getShardsSize(n);
-  iterations = iterations>count_messages?count_messages:iterations;
+  iterations = iterations > count_messages ? count_messages : iterations;
 
   const uintll_t count_shards = iterations / size_shards;
-  const uint_t h = ( n==8 ? 5 : (n<32?6:7) );
+  const uint_t h = ( n == 8 ? 5 : (n < 32 ? 6 : 7) );
   const uintll_t bitcount_message = n + h;
   const uint_t count_counts = bitcount_message + 1;
 
-
-  uintll_t** dcounts;
-  uintll_t** hcounts;
-
-  dcounts = new uintll_t*[nr_dev];
-  hcounts = new uintll_t*[nr_dev];
+  uintll_t** dcounts = new uintll_t*[nr_dev];
+  uintll_t** hcounts = new uintll_t*[nr_dev];
 
 #pragma omp parallel for num_threads(nr_dev) schedule(static,1)
-  for(int dev=0; dev<nr_dev; ++dev)
+  for(int dev = 0; dev < nr_dev; ++dev)
   {
     dim3 threads(128, 1, 1);
-    uint_t xblocks;
     uintll_t offset, end;
     dim3 blocks;
     RandGen<RAND_GEN> gen;
 
     CHECK_ERROR( cudaSetDevice(dev) );
-    CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
-    CHECK_ERROR( cudaMalloc(dcounts+dev, count_counts*sizeof(uintll_t)) );
-    CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts*sizeof(uintll_t)) );
+    CHECK_ERROR( cudaMalloc(&dcounts[dev], count_counts * sizeof(uintll_t)) );
+    CHECK_ERROR( cudaMemset(dcounts[dev], 0, count_counts * sizeof(uintll_t)) );
 
     hcounts[dev] = new uintll_t[count_counts];
-    memset(hcounts[dev], 0, count_counts*sizeof(uintll_t));
+    memset(hcounts[dev], 0, count_counts * sizeof(uintll_t));
 
-
-    //end = 0;
-    //    offset = count_shards / nr_dev / nr_dev * (dev)*(dev);
-    //    end = count_shards / nr_dev / nr_dev * (dev+1)*(dev+1);
     offset = count_shards / nr_dev * dev;
-    end = count_shards / nr_dev * (dev+1);
+    end = count_shards / nr_dev * (dev + 1);
 
-    xblocks = ceil(sqrt(1.0*(end-offset) / threads.x)) ;
-    blocks.x= xblocks; blocks.y = xblocks;
+    uint_t xblocks = ceil(sqrt(1.0 * (end - offset) / threads.x));
+    blocks.x = xblocks; blocks.y = xblocks;
 
-    // 3) Remainder of the slice
-    if(verbose){
-      printf("%d/%d threads on %s.\n", omp_get_thread_num()+1, omp_get_num_threads(), prop.name);
-      printf("Dev %d: Blocks: %d %d, offset %llu, end %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end, (threads.x-1+threads.x * ((xblocks-1) * (xblocks) + (xblocks-1)) + offset)*size_shards);
+    if(verbose > 1) {
+      cudaDeviceProp prop;
+      CHECK_ERROR( cudaGetDeviceProperties(&prop, dev) );
+      printf("%d/%d threads on %s.\n", omp_get_thread_num() + 1, omp_get_num_threads(), prop.name);
+      printf("Dev %d: Blocks: %d x %d, offset %llu, end %llu\n", dev, blocks.x, blocks.y, offset, end);
     }
 
-    /* random generator stuff */
-    gen.init(blocks, threads, 1337+8137*xblocks*xblocks*threads.x*dev, 1, dev);
-    //dim3 blocks( (count_shards / threads.x)/2, 2 );
-    if(dev==0)
-      results_gpu.start(i_runtime);
+    // Initialize random number generator for this device
+    gen.init(blocks, threads, 1337 + 8137 * xblocks * xblocks * threads.x * dev, 1, dev);
+    
+    if(dev == 0) results_gpu.start(i_runtime);
 
     Hamming::bridge<Caller>(n, blocks, threads, dcounts[dev], offset, end, gen.devStates);
-
     CHECK_LAST("Kernel failed.");
 
-    if(dev==0) results_gpu.stop(i_runtime);
+    if(dev == 0) results_gpu.stop(i_runtime);
 
     gen.free();
   }
 
-  CHECK_ERROR(
-      cudaMemcpy(hcounts[0], dcounts[0], count_counts*sizeof(uintll_t), cudaMemcpyDefault)
-      );
-  // other devices sum up to [0]
-  for(int dev=1; dev<nr_dev; ++dev)
+  // Aggregate results back to host
+  CHECK_ERROR( cudaMemcpy(hcounts[0], dcounts[0], count_counts * sizeof(uintll_t), cudaMemcpyDeviceToHost) );
+  for(int dev = 1; dev < nr_dev; ++dev)
   {
-    CHECK_ERROR(
-      cudaMemcpy(hcounts[dev], dcounts[dev], count_counts*sizeof(uintll_t), cudaMemcpyDefault)
-      );
-    for(uint_t i=0; i<count_counts; ++i)
+    CHECK_ERROR( cudaMemcpy(hcounts[dev], dcounts[dev], count_counts * sizeof(uintll_t), cudaMemcpyDeviceToHost) );
+    for(uint_t i = 0; i < count_counts; ++i)
       hcounts[0][i] += hcounts[dev][i];
     CHECK_ERROR( cudaFree(dcounts[dev]) );
     delete[] hcounts[dev];
@@ -193,23 +191,25 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
 
   results_cpu.stop(i_totaltime);
 
-
-  // results
+  // Extrapolate Monte Carlo results to full code space
   uint128_t counts[64] = {0};
-  counts[0] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,2*n)*(hcounts[0][0])/iterations));
-  for(uint_t i=2; i<count_counts; i+=2)
+  long double factor = pow(2.0L, (long double)(2 * n)) / iterations;
+  counts[0] = static_cast<uint128_t>(factor * hcounts[0][0]);
+  for(uint_t i = 2; i < count_counts; i += 2)
   {
-    counts[i] = static_cast<uint128_t>(static_cast<long double>(pow(2.0,2*n)*(hcounts[0][i]+hcounts[0][i-1])/iterations));
+    counts[i] = static_cast<uint128_t>(factor * (hcounts[0][i] + hcounts[0][i-1]));
   }
+  
   if(with_1bit)
   {  
-    // 1-bit sphere  
-    for (uint_t i = 1; i < count_counts; i+=2)
+    // Calculate results for 1-bit sphere
+    for (uint_t i = 1; i < count_counts; i += 2)
     {
-      if(i+1<count_counts){
-        counts[i] = uint128_t(i+1)*counts[i+1] + uint128_t(bitcount_message-i+1)*counts[i-1];
-      }else
-        counts[i] = uint128_t(bitcount_message-i+1)*counts[i-1];
+      if(i + 1 < count_counts) {
+        counts[i] = uint128_t(i + 1) * counts[i + 1] + uint128_t(bitcount_message - i + 1) * counts[i - 1];
+      } else {
+        counts[i] = uint128_t(bitcount_message - i + 1) * counts[i - 1];
+      }
     }
   }
 
@@ -221,9 +221,10 @@ double run_hamming_mc(uintll_t n, int with_1bit, uintll_t iterations, int file_o
   
   double max_abs_error = get_abs_error_hamming(n, counts, 0, with_1bit, nullptr);
 
-  if(verbose)
+  if(verbose || file_output)
   {    
-    process_result_hamming_mc(counts,stats,n,h,with_1bit,iterations,file_output?"hamming_mc":nullptr);
+    const char* prefix = file_output ? "hamming_mc" : nullptr;
+    process_result_hamming_mc(counts, stats, n, h, with_1bit, iterations, prefix);
   }
 
   return max_abs_error;

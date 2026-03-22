@@ -17,94 +17,86 @@
 
 #include <helper.h>
 
-#define OFFSET_MULT 8137 // should be a higher number
-/*
-Notes:
-i * 32 * curandDirectionVectors32 === curandDirectionVectors32_t[i]
+#define OFFSET_MULT 8137
 
-offset in curand_init should be high between threads (e.g. offset=tid*XXXXX)
-(first 'random' numbers are nonsense)
-
-does every threads needs his own dimension aka own direction vector (aka own stream) ?
-=> you are limited to 20k threads
-=> better to play with offsets
-(1 random number stream has sequence of sobol32 is 2^32)
-
-curand() does not deliver random number (but index of next element), use curand_*() instead
-
-better to use fewer threads with longer runnings within random number stream
+/**
+ * @brief Initializes simple pseudo-random generator states on the GPU.
  */
-
 template<uint_t DIM>
 __global__ void init_rand_gen(curandState_t *state,
     uint_t seed)
 {
-  uint_t tid = DIM*(threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x));
+  uint_t tid = DIM * (threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x));
 
   curand_init(seed,
               tid,
               1,
               &state[tid]);
-  if(DIM==2)
-    curand_init(seed+1,
-              tid+1,
+  if(DIM == 2)
+    curand_init(seed + 1,
+              tid + 1,
               2,
               &state[tid]);
-  if(DIM==3)
-    curand_init(seed+2,
-              tid+2,
+  if(DIM == 3)
+    curand_init(seed + 2,
+              tid + 2,
               3,
               &state[tid]);
 }
 
-
+/**
+ * @brief Initializes Sobol quasi-random generator states on the GPU.
+ */
 template<uint_t DIM, typename curandDirectionVectors_sz, typename curandStateSobol_sz>
 __global__ void init_rand_gen(curandDirectionVectors_sz * sobolDirectionVectors,
     curandStateSobol_sz *state,
     uint_t offset)
 {
-  //uint_t tid = DIM*(threadIdx.x + blockDim.x * blockIdx.x);
-  uint_t tid = DIM*(threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x));
+  uint_t tid = DIM * (threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x));
 
   curand_init(sobolDirectionVectors[0],
-              (offset+tid)*OFFSET_MULT,
+              (offset + tid) * OFFSET_MULT,
               &state[tid]);
-  if(DIM==2)
-    curand_init(sobolDirectionVectors[1], // sobol direction vectors consists of 32 vectors (curandStateScrambledSobol32)
-              (offset+tid)*OFFSET_MULT,
+  if(DIM == 2)
+    curand_init(sobolDirectionVectors[1],
+              (offset + tid) * OFFSET_MULT,
               &state[tid+1]);
-  if(DIM==3)
-      curand_init(sobolDirectionVectors[2], // sobol direction vectors consists of 32 vectors (curandStateScrambledSobol32)
-              (offset+tid)*OFFSET_MULT,
+  if(DIM == 3)
+      curand_init(sobolDirectionVectors[2],
+              (offset + tid) * OFFSET_MULT,
               &state[tid+2]);
 }
 
+/**
+ * @brief Initializes Scrambled Sobol quasi-random generator states on the GPU.
+ */
 template<uint_t DIM>
 __global__ void init_rand_gen(curandDirectionVectors32_t * sobolDirectionVectors,
     uint_t *sobolScrambleConstants,
     curandStateScrambledSobol32_t *state,
     uint_t offset)
 {
-  //uint_t tid = DIM*(threadIdx.x + blockDim.x * blockIdx.x);
-  uint_t tid = DIM*(threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x));
+  uint_t tid = DIM * (threadIdx.x + blockDim.x * (blockIdx.y * gridDim.x + blockIdx.x));
 
   curand_init(sobolDirectionVectors[0],
               sobolScrambleConstants[0],
-              (offset+tid)*OFFSET_MULT,
+              (offset + tid) * OFFSET_MULT,
               &state[tid]);
-  if(DIM==2)
-    curand_init(sobolDirectionVectors[1], // sobol direction vectors consists of 32 vectors (curandStateScrambledSobol32)
+  if(DIM == 2)
+    curand_init(sobolDirectionVectors[1],
               sobolScrambleConstants[1],
-              (offset+tid)*OFFSET_MULT,
+              (offset + tid) * OFFSET_MULT,
               &state[tid+1]);
-  if(DIM==3)
-      curand_init(sobolDirectionVectors[2], // sobol direction vectors consists of 32 vectors (curandStateScrambledSobol32)
+  if(DIM == 3)
+      curand_init(sobolDirectionVectors[2],
               sobolScrambleConstants[2],
-              (offset+tid)*OFFSET_MULT,
+              (offset + tid) * OFFSET_MULT,
               &state[tid+2]);
 }
 
-
+/**
+ * @brief Initializes Scrambled Sobol states and necessary GPU resources.
+ */
 void RandGen<curandStateScrambledSobol32_t>::init(dim3 blocks, dim3 threads, uint_t offset, uint_t dim, uint_t dev)
 {
   uint_t max_threads = threads.x * blocks.x * blocks.y;
@@ -113,7 +105,7 @@ void RandGen<curandStateScrambledSobol32_t>::init(dim3 blocks, dim3 threads, uin
   CHECK_ERROR_LIB(curandGetDirectionVectors32( &hostVectors, CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6));
   CHECK_ERROR_LIB(curandGetScrambleConstants32( &hostScrambleConstants));
 
-  CHECK_ERROR(cudaMalloc(&devStates, dim*max_threads * sizeof(curandStateScrambledSobol32_t)));
+  CHECK_ERROR(cudaMalloc(&devStates, dim * max_threads * sizeof(curandStateScrambledSobol32_t)));
   CHECK_ERROR(cudaMalloc(&devDirectionVectors, dim * sizeof(curandDirectionVectors32_t)));
   CHECK_ERROR(cudaMalloc(&devScrambleConstants, dim * sizeof(uint_t)));
 
@@ -131,7 +123,7 @@ void RandGen<curandStateScrambledSobol32_t>::init(dim3 blocks, dim3 threads, uin
       init_rand_gen<3><<<blocks, threads>>>(devDirectionVectors, devScrambleConstants, devStates, offset);
       break;
     default:
-    init_rand_gen<1><<<blocks, threads>>>(devDirectionVectors, devScrambleConstants, devStates, offset);
+      init_rand_gen<1><<<blocks, threads>>>(devDirectionVectors, devScrambleConstants, devStates, offset);
   }
 }
 
@@ -142,15 +134,16 @@ void RandGen<curandStateScrambledSobol32_t>::free()
   CHECK_ERROR(cudaFree(devScrambleConstants));
 }
 
-// --------
-
+/**
+ * @brief Initializes Sobol 32 states and necessary GPU resources.
+ */
 void RandGen<curandStateSobol32_t>::init(dim3 blocks, dim3 threads, uint_t offset, uint_t dim, uint_t dev)
 {
   uint_t max_threads = threads.x * blocks.x * blocks.y;
 
   CHECK_ERROR(cudaSetDevice(dev));
   CHECK_ERROR_LIB(curandGetDirectionVectors32( &hostVectors, CURAND_DIRECTION_VECTORS_32_JOEKUO6));
-  CHECK_ERROR(cudaMalloc(&devStates, dim*max_threads * sizeof(curandStateSobol32_t)));
+  CHECK_ERROR(cudaMalloc(&devStates, dim * max_threads * sizeof(curandStateSobol32_t)));
   CHECK_ERROR(cudaMalloc(&devDirectionVectors, dim * sizeof(curandDirectionVectors32_t)));
   CHECK_ERROR(cudaMemcpy(devDirectionVectors, hostVectors, dim * sizeof(curandDirectionVectors32_t),
                         cudaMemcpyHostToDevice));
@@ -164,7 +157,7 @@ void RandGen<curandStateSobol32_t>::init(dim3 blocks, dim3 threads, uint_t offse
       init_rand_gen<3><<<blocks, threads>>>(devDirectionVectors, devStates, offset);
       break;
     default:
-    init_rand_gen<1><<<blocks, threads>>>(devDirectionVectors, devStates, offset);
+      init_rand_gen<1><<<blocks, threads>>>(devDirectionVectors, devStates, offset);
   }
 }
 
@@ -174,15 +167,16 @@ void RandGen<curandStateSobol32_t>::free()
   CHECK_ERROR(cudaFree(devDirectionVectors));
 }
 
-// --------
-
+/**
+ * @brief Initializes Sobol 64 states and necessary GPU resources.
+ */
 void RandGen<curandStateSobol64_t>::init(dim3 blocks, dim3 threads, uint_t offset, uint_t dim, uint_t dev)
 {
   uint_t max_threads = threads.x * blocks.x * blocks.y;
 
   CHECK_ERROR(cudaSetDevice(dev));
   CHECK_ERROR_LIB(curandGetDirectionVectors64( &hostVectors, CURAND_DIRECTION_VECTORS_64_JOEKUO6));
-  CHECK_ERROR(cudaMalloc(&devStates, dim*max_threads * sizeof(curandStateSobol64_t)));
+  CHECK_ERROR(cudaMalloc(&devStates, dim * max_threads * sizeof(curandStateSobol64_t)));
   CHECK_ERROR(cudaMalloc(&devDirectionVectors, dim * sizeof(curandDirectionVectors64_t)));
   CHECK_ERROR(cudaMemcpy(devDirectionVectors, hostVectors, dim * sizeof(curandDirectionVectors64_t),
                         cudaMemcpyHostToDevice));
@@ -196,7 +190,7 @@ void RandGen<curandStateSobol64_t>::init(dim3 blocks, dim3 threads, uint_t offse
       init_rand_gen<3><<<blocks, threads>>>(devDirectionVectors, devStates, offset);
       break;
     default:
-    init_rand_gen<1><<<blocks, threads>>>(devDirectionVectors, devStates, offset);
+      init_rand_gen<1><<<blocks, threads>>>(devDirectionVectors, devStates, offset);
   }
 }
 
@@ -206,14 +200,16 @@ void RandGen<curandStateSobol64_t>::free()
   CHECK_ERROR(cudaFree(devDirectionVectors));
 }
 
-// --------
+/**
+ * @brief Default specialization for standard CURAND pseudo-random states.
+ */
 template<>
 void RandGen<curandState_t>::init(dim3 blocks, dim3 threads, uint_t seed, uint_t dim, uint_t dev)
 {
   uint_t max_threads = threads.x * blocks.x * blocks.y;
 
   CHECK_ERROR(cudaSetDevice(dev));
-  CHECK_ERROR(cudaMalloc(&devStates, dim*max_threads * sizeof(curandStateSobol32_t)));
+  CHECK_ERROR(cudaMalloc(&devStates, dim * max_threads * sizeof(curandStateSobol32_t)));
 
   switch(dim)
   {
@@ -224,7 +220,7 @@ void RandGen<curandState_t>::init(dim3 blocks, dim3 threads, uint_t seed, uint_t
       init_rand_gen<3><<<blocks, threads>>>(devStates, seed);
       break;
     default:
-    init_rand_gen<1><<<blocks, threads>>>(devStates, seed);
+      init_rand_gen<1><<<blocks, threads>>>(devStates, seed);
   }
 }
 

@@ -4,10 +4,7 @@ PROJECT(codrel)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-set(CMAKE_CXX_STANDARD 11)
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  LIST (APPEND CMAKE_CXX_FLAGS "--std=gnu++11")
-endif ()
+set(CMAKE_CXX_STANDARD 20)
 
 
 find_package(OpenMP)

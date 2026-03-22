@@ -23,9 +23,6 @@
 #include <cuda_runtime_api.h>
 #include <omp.h>
 
-#include <iostream>
-#include <ostream>
-
 #include <curand.h>
 #include <curand_kernel.h>
 
@@ -33,6 +30,10 @@
 const int USE_ORDER=0; // for 2d with y>x mapping
 
 using namespace std;
+
+/**
+ * @brief CUDA kernel for testing CURAND generator uniformity by generating pairs of numbers.
+ */
 template<uint_t N, int USE_ORDER, typename RandGenType>
 __global__
 void dtest(uint_t *const test, RandGenType *const state, const uint_t iterations, const uint_t max_threads)
@@ -52,7 +53,6 @@ void dtest(uint_t *const test, RandGenType *const state, const uint_t iterations
     index = 2*(it*max_threads+tid);
     if(USE_ORDER)
       do{
-        //v = static_cast<uintll_t>( curand(&local_state)) & ((1ull<<N)-1); // @todo early collisions possible for N<32
         v = static_cast<uintll_t>( (static_cast<float>(1ull<<N)-2) * curand_uniform(&local_state_x) + 0.5f);
         w = static_cast<uintll_t>( (static_cast<float>(1ull<<N)-2) * curand_uniform(&local_state_y) + 0.5f);
         w+=1;
@@ -72,6 +72,9 @@ void dtest(uint_t *const test, RandGenType *const state, const uint_t iterations
 }
 
 
+/**
+ * @brief CUDA kernel for testing CURAND generator in 1D.
+ */
 template<uint_t N, int USE_ORDER, typename RandGenType>
 __global__
 void dtest_1d(uint_t *const test, RandGenType *const state, const uint_t iterations, const uint_t max_threads)
@@ -96,11 +99,9 @@ void dtest_1d(uint_t *const test, RandGenType *const state, const uint_t iterati
     {
       double val = MSGS;
       double val_z = z;
-      // todo: fix (v does not fill to 2^N)
       v = uintll_t(val+0.5-sqrt((val+0.5)*(val+0.5)+2.0*(1.0-val_z)));
       w = z+v+v*(v-1)/2-MSGS*v;
     }else{
-      // todo: zeros appear too often
       v = z/MSGS;
       w = z&(MSGS-1);
     }
@@ -111,6 +112,9 @@ void dtest_1d(uint_t *const test, RandGenType *const state, const uint_t iterati
   state[tid] = local_state_x;
 }
 
+/**
+ * @brief CUDA kernel for testing raw CURAND generator output.
+ */
 template<uint_t N, typename RandGenType>
 __global__
 void dtest_raw(uint_t *const test, RandGenType *const state, const uint_t iterations, const uint_t max_threads)
@@ -135,6 +139,9 @@ void dtest_raw(uint_t *const test, RandGenType *const state, const uint_t iterat
   state[tid] = local_state_x;
 }
 
+/**
+ * @brief Host function to test CURAND generator.
+ */
 extern void test_curand(uintll_t n, uintll_t iterations, int max_nr_dev)
 {
   int tmp_nr_dev;
@@ -155,13 +162,10 @@ extern void test_curand(uintll_t n, uintll_t iterations, int max_nr_dev)
   printf("Found %d CUDA devices.\n", nr_dev);
   results_cpu.start(i_totaltime);
 
-  // curand sobol generator parameters give limit max_threads<20k/dims
   dim3 threads(128, 1, 1);
   uintll_t nr_pairs = USE_ORDER==1 ? ((1ull<<n)-1)*(1ull<<(n-1)) : uintll_t(uint128_t(1)<<(2*n))-1;
-  //dim3 blocks(min(10000ull,nr_pairs/nr_dev/iterations+threads.x-1)/threads.x, 1, 1);
   dim3 blocks((nr_pairs/nr_dev/iterations+threads.x-1)/threads.x, 1, 1);
   uint_t max_threads = threads.x * blocks.x;
-  //printf("%u\n", max_threads);
   uint_t numbers_length = 2*iterations*max_threads;
   uint_t* numbers = new uint_t[nr_dev*numbers_length];
   memset(numbers,0,nr_dev*numbers_length*sizeof(uint_t));
@@ -237,8 +241,9 @@ extern void test_curand(uintll_t n, uintll_t iterations, int max_nr_dev)
 }
 
 
-
-
+/**
+ * @brief Host function to test CURAND generator in 1D.
+ */
 extern void test_curand_1d(uintll_t n, uintll_t iterations, int max_nr_dev)
 {
   int tmp_nr_dev;
@@ -259,16 +264,13 @@ extern void test_curand_1d(uintll_t n, uintll_t iterations, int max_nr_dev)
   printf("Found %d CUDA devices.\n", nr_dev);
   results_cpu.start(i_totaltime);
 
-  // curand sobol generator parameters give limit max_threads<20k/dims
   dim3 threads(128, 1, 1);
   uintll_t nr_pairs = USE_ORDER==1 ? ((1ull<<n)-1)*(1ull<<(n-1)) : uintll_t(uint128_t(1)<<(2*n))-1;
-  //dim3 blocks(min(20000ull,nr_pairs/nr_dev/iterations+threads.x-1)/threads.x, 1, 1);
   dim3 blocks(min(16384ull,(nr_pairs/nr_dev/iterations+threads.x-1)/threads.x), 1, 1);
   blocks.y = floor(sqrt(blocks.x)+0.5);
   blocks.x = blocks.y;
 
   uint_t max_threads = threads.x * blocks.x * blocks.y;
-  //printf("%u\n", max_threads);
   uint_t numbers_length = 2*iterations*max_threads;
   uint_t* numbers = new uint_t[nr_dev*numbers_length];
   memset(numbers,0,nr_dev*numbers_length*sizeof(uint_t));
@@ -346,6 +348,9 @@ extern void test_curand_1d(uintll_t n, uintll_t iterations, int max_nr_dev)
 }
 
 
+/**
+ * @brief Host function to test raw CURAND generator output.
+ */
 extern void test_curand_raw(uintll_t n, uintll_t iterations, int max_nr_dev)
 {
   int tmp_nr_dev;
